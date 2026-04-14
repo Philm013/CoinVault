@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>CoinVault | PhilM013</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+    <script>
+tailwind.config = {
+    darkMode: 'class',
+    theme: {
+        extend: {
+            colors: {
+                ollama: { bg: '#ffffff', snow: '#fafafa', gray: '#e5e5e5', border: '#d4d4d4', stone: '#737373', mid: '#525252', nearBlack: '#262626', black: '#000000' }
+            },
+            fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] }
+        }
+    }
+}
+    </script>
+    <style type="text/tailwindcss">
+@layer base {
+    body { @apply bg-ollama-bg text-ollama-nearBlack font-sans selection:bg-ollama-gray; }
+    h1, h2, h3 { @apply text-ollama-black font-medium tracking-tight; }
+}
+@layer components {
+    .container-custom { @apply max-w-[800px] mx-auto px-6; }
+    .btn-pill-black { @apply px-8 py-3 bg-ollama-black text-white rounded-full transition-all duration-200 flex items-center justify-center gap-2 font-medium hover:opacity-90 active:scale-[0.98]; }
+    .btn-pill-white { @apply px-8 py-3 bg-white text-ollama-mid border border-ollama-border rounded-full transition-all duration-200 flex items-center justify-center gap-2 font-medium hover:bg-ollama-snow active:scale-[0.98]; }
+    .tag-pill { @apply px-2.5 py-0.5 rounded-full bg-ollama-gray text-ollama-stone text-[11px] font-medium uppercase tracking-wider; }
+    .tech-pill { @apply px-2 py-0.5 rounded-full bg-ollama-snow border border-ollama-gray text-ollama-stone text-[10px] font-medium; }
+    .visual-block { @apply border border-ollama-gray rounded-xl bg-ollama-snow p-8 flex flex-col gap-4 my-10 relative overflow-hidden; }
+}
+* { box-shadow: none !important; }
+.prose pre { @apply bg-ollama-snow border border-ollama-gray rounded-xl p-6 overflow-x-auto my-8; }
+.prose code { @apply text-ollama-black bg-ollama-gray px-1.5 py-0.5 rounded-md text-sm font-mono font-medium; }
+.prose pre code { @apply bg-transparent text-ollama-nearBlack p-0 text-sm leading-relaxed; }
+.prose h1, .prose h2, .prose h3 { @apply text-ollama-black font-medium mt-12 mb-6; }
+.prose h1 { @apply text-4xl border-b border-ollama-gray pb-6 mb-10; }
+.prose h2 { @apply text-2xl border-b border-ollama-gray/50 pb-3 mb-8; }
+.prose p { @apply mb-8 text-ollama-stone leading-relaxed text-lg font-normal; }
+.prose ul, .prose ol { @apply mb-8 pl-6 text-ollama-stone text-lg space-y-3; }
+.prose ul { @apply list-disc marker:text-ollama-mid; }
+.prose ol { @apply list-decimal marker:text-ollama-mid; }
+.prose a { @apply text-ollama-black transition-colors underline decoration-ollama-border underline-offset-4 hover:decoration-ollama-black; }
+.prose blockquote { @apply border-l-2 border-ollama-black pl-8 italic text-ollama-mid py-2 my-8; }
+.prose table { @apply w-full text-left border-collapse my-10 border border-ollama-gray block overflow-x-auto; }
+.prose th, .prose td { @apply border border-ollama-gray p-4; }
+.prose th { @apply bg-ollama-snow text-ollama-black font-medium; }
+.prose td { @apply text-ollama-stone; }
+.prose img { @apply max-w-full rounded-xl border border-ollama-gray my-10 mx-auto; }
+.prose hr { @apply border-ollama-gray my-12; }
+    </style>
+</head>
+<body class="antialiased overflow-x-hidden min-h-screen flex flex-col">
+    <nav class="py-4 md:py-5 bg-white/80 backdrop-blur-sm sticky top-0 z-50 border-b border-ollama-snow">
+        <div class="container-custom flex items-center justify-between">
+            <a href="../index.html" class="flex items-center gap-2 text-ollama-stone hover:text-ollama-black transition-colors font-medium">
+                <span class="iconify" data-icon="lucide:arrow-left"></span>
+                <span>Back</span>
+            </a>
+            <div class="flex items-center gap-3 font-medium text-lg absolute left-1/2 -translate-x-1/2 pointer-events-none">
+                <span class="iconify text-ollama-black" data-icon="lucide:coins"></span>
+                <span>CoinVault</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="index.html" class="btn-pill-black text-sm px-5 py-2">Launch App</a>
+            </div>
+        </div>
+    </nav>
+    <main class="flex-grow pt-8 md:pt-10 pb-14 md:pb-16">
+        <div class="container-custom">
+            <div class="text-center mb-10 md:mb-12 space-y-4 md:space-y-5">
+                <div class="flex justify-center">
+                    <div class="w-10 h-10 rounded-full border border-ollama-gray flex items-center justify-center p-2">
+                        <span class="iconify text-xl text-ollama-black" data-icon="lucide:coins"></span>
+                    </div>
+                </div>
+                <h1 class="text-2xl md:text-3xl">CoinVault</h1>
+                <p class="text-sm md:text-base text-ollama-stone max-w-2xl mx-auto leading-relaxed">Numismatic cataloging tool using AI for identification and grading assistance.</p>
+                <div class="flex flex-wrap justify-center gap-1.5 pt-1">
+                    <span class="tech-pill px-3 py-1 text-xs">Gemini Vision</span><span class="tech-pill px-3 py-1 text-xs">IndexedDB</span><span class="tech-pill px-3 py-1 text-xs">Computer Vision</span>
+                </div>
+            </div>
+            <div class="space-y-16">
+                <div class="visual-block">
+                    <div class="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
+                        <span class="iconify text-[200px]" data-icon="lucide:coins"></span>
+                    </div>
+                    <div class="relative z-10">
+                        <h4 class="text-ollama-black font-medium mb-2 uppercase tracking-widest text-xs">Core Architecture</h4>
+                        <h3 class="text-2xl mb-4">Numismatic Classification Flow</h3>
+                        <p class="text-ollama-stone text-lg max-w-lg mb-8">Coin imaging, AI-assisted classification, and grading metadata are organized into a searchable, local-first collection system.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 h-48">
+                            <div class="border border-ollama-gray bg-white rounded-xl flex items-center justify-center p-4 text-center">
+                                <span class="text-ollama-stone text-xs font-mono uppercase tracking-tighter leading-tight">Coin Images<br>& Grade Records</span>
+                            </div>
+                            <div class="border border-ollama-black bg-ollama-gray rounded-xl flex items-center justify-center p-4 text-center">
+                                <span class="text-ollama-black text-xs font-mono font-bold uppercase tracking-tighter leading-tight">Vision Model<br>& Classification Flow</span>
+                            </div>
+                            <div class="border border-ollama-gray bg-white rounded-xl flex items-center justify-center p-4 text-center">
+                                <span class="text-ollama-stone text-xs font-mono uppercase tracking-tighter leading-tight">Collection UI<br>& Trend Views</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="readme-content" class="prose max-w-none"></div>
+                <div class="visual-block border-ollama-black/20">
+                    <h4 class="text-ollama-black font-medium mb-2 uppercase tracking-widest text-xs">Technical Integration</h4>
+                    <h3 class="text-2xl mb-6">Standardized Tooling</h3>
+                    <div class="flex flex-wrap gap-8 items-center justify-center md:justify-start">
+                        
+                            <div class="flex flex-col items-center gap-2">
+                                <div class="w-12 h-12 rounded-full border border-ollama-gray flex items-center justify-center">
+                                    <span class="iconify text-xl" data-icon="lucide:zap"></span>
+                                </div>
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-ollama-stone">Gemini Vision</span>
+                            </div>
+                        
+                            <div class="flex flex-col items-center gap-2">
+                                <div class="w-12 h-12 rounded-full border border-ollama-gray flex items-center justify-center">
+                                    <span class="iconify text-xl" data-icon="lucide:zap"></span>
+                                </div>
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-ollama-stone">IndexedDB</span>
+                            </div>
+                        
+                            <div class="flex flex-col items-center gap-2">
+                                <div class="w-12 h-12 rounded-full border border-ollama-gray flex items-center justify-center">
+                                    <span class="iconify text-xl" data-icon="lucide:zap"></span>
+                                </div>
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-ollama-stone">Computer Vision</span>
+                            </div>
+                        
+                    </div>
+                </div>
+            </div>
+            <div class="mt-32 pt-16 border-t border-ollama-gray">
+                <h3 class="text-3xl mb-10 text-center font-medium">Explore More Projects</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    
+                        <a href="../NGSS-Explorer/readme.html" class="group block p-6 border border-ollama-gray rounded-xl bg-white hover:border-ollama-black transition-all duration-200">
+                            <div class="w-10 h-10 rounded-lg bg-ollama-snow border border-ollama-gray flex items-center justify-center mb-4 group-hover:bg-ollama-gray transition-colors">
+                                <span class="iconify text-xl text-ollama-black" data-icon="lucide:compass"></span>
+                            </div>
+                            <h4 class="text-lg font-medium mb-2">NGSS Explorer</h4>
+                            <p class="text-ollama-stone text-sm leading-relaxed line-clamp-2">Interactive tool for exploring Next Gen Science Standards with AI analysis.</p>
+                        </a>
+                    
+                        <a href="../ProximaNova/readme.html" class="group block p-6 border border-ollama-gray rounded-xl bg-white hover:border-ollama-black transition-all duration-200">
+                            <div class="w-10 h-10 rounded-lg bg-ollama-snow border border-ollama-gray flex items-center justify-center mb-4 group-hover:bg-ollama-gray transition-colors">
+                                <span class="iconify text-xl text-ollama-black" data-icon="lucide:rocket"></span>
+                            </div>
+                            <h4 class="text-lg font-medium mb-2">ProximaNova</h4>
+                            <p class="text-ollama-stone text-sm leading-relaxed line-clamp-2">Futuristic canvas-based strategic expansion game with real-time management.</p>
+                        </a>
+                    
+                        <a href="../ThinkTank/readme.html" class="group block p-6 border border-ollama-gray rounded-xl bg-white hover:border-ollama-black transition-all duration-200">
+                            <div class="w-10 h-10 rounded-lg bg-ollama-snow border border-ollama-gray flex items-center justify-center mb-4 group-hover:bg-ollama-gray transition-colors">
+                                <span class="iconify text-xl text-ollama-black" data-icon="lucide:brain"></span>
+                            </div>
+                            <h4 class="text-lg font-medium mb-2">ThinkTank</h4>
+                            <p class="text-ollama-stone text-sm leading-relaxed line-clamp-2">AI-powered study tool aligned with NGSS for interactive learning sessions.</p>
+                        </a>
+                    
+                </div>
+            </div>
+            <div class="mt-32 pt-12 flex flex-col items-center gap-8">
+                <div class="flex flex-wrap justify-center gap-4">
+                    <a href="index.html" class="btn-pill-black px-12">Launch Application</a>
+                    <a href="https://github.com/philm013/philm013.github.io/tree/main/CoinVault" target="_blank" class="btn-pill-white px-12">View Source</a>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer class="py-12 border-t border-ollama-gray text-center bg-ollama-snow">
+        <div class="container-custom text-ollama-stone text-sm font-medium">
+            <p>© 2026 PhilM013. Minimalism as a Service.</p>
+        </div>
+    </footer>
+    <script>
+        const rawMarkdown = `# CoinVault
+
+A sophisticated, browser-based coin and currency cataloging tool with AI-powered scanning.
+
+## Features
+
+- **AI-Powered Scanning:** Uses Gemini AI and OpenCV.js for high-accuracy coin recognition and data extraction.
+- **Computer Vision:** Real-time coin detection and cropping using \`opencv.js\`.
+- **Collection Management:** Organize your numismatic collection with precision.
+- **Elegant UI:** A stone-themed, futuristic interface designed for collectors.
+- **Mobile-First Design:** Optimized for mobile devices with safe-area support.
+- **PWA Ready:** Manifest included for a standalone app experience.
+
+## Technologies Used
+
+- **Tailwind CSS:** For modern styling.
+- **Iconify:** For dynamic icon loading.
+- **Chart.js:** For data visualization.
+- **OpenCV.js:** For computer vision tasks (coin detection and cropping).
+- **Gemini AI:** For advanced coin identification and metadata enrichment.
+`;
+        async function renderReadme() {
+            let markdownToRender = rawMarkdown;
+            try {
+                const candidates = ['README.md', 'readme.md'];
+                for (const file of candidates) {
+                    const response = await fetch(file, { cache: 'no-store' });
+                    if (response.ok) {
+                        markdownToRender = await response.text();
+                        break;
+                    }
+                }
+            } catch (error) {
+                // Fall back to embedded markdown when external files are unavailable.
+            }
+
+            if ((markdownToRender || '').trim()) {
+                document.getElementById('readme-content').innerHTML = marked.parse(markdownToRender);
+            } else {
+                document.getElementById('readme-content').innerHTML = '<div class="text-center py-24 border border-dashed border-ollama-gray rounded-xl"><span class="iconify text-5xl text-ollama-gray mb-6 mx-auto" data-icon="lucide:file-question"></span><h3 class="text-xl font-medium text-ollama-stone text-center m-0">No documentation found.</h3></div>';
+            }
+        }
+
+        renderReadme();
+    </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "CoinVault",
+  "short_name": "CoinVault",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#78350f",
+  "theme_color": "#78350f",
+  "description": "Coin and currency cataloging with Gemini AI.",
+  "icons": [
+    {
+      "src": "https://api.iconify.design/mdi:gold.svg?color=%23ffffff",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

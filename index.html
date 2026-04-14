@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+if (!window.location.pathname.endsWith('/') && !window.location.pathname.endsWith('.html')) {
+window.location.replace(window.location.pathname + '/' + window.location.search + window.location.hash);
+}
+  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>CoinVault</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://docs.opencv.org/4.10.0/opencv.js" async></script>
+    <style>
+        :root { --sat: env(safe-area-inset-top); --sab: env(safe-area-inset-bottom); }
+        body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+        .view-section { height: 100dvh; display: flex; flex-direction: column; padding-top: var(--sat); }
+        .cropper-container { position: relative; width: 100%; height: 100%; background: #111; overflow: hidden; }
+        #cameraVideo, #captureCanvas { width: 100%; height: 100%; object-fit: contain; position: absolute; top: 0; left: 0; }
+        #captureCanvas { z-index: 10; touch-action: none; }
+        
+        /* Sidebar for Desktop */
+        @media (min-width: 1024px) {
+            #bottomNav { display: none !important; }
+            #sidebar { display: flex !important; }
+            #mainContent { margin-left: 280px; }
+            #mainHeader { display: none !important; }
+        }
+
+        /* Glassmorphism */
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .glass-dark { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+
+        /* Bottom Sheet Styles */
+        #itemBottomSheet {
+            position: fixed; bottom: 0; left: 0; right: 0; background: white;
+            border-top-left-radius: 2.5rem; border-top-right-radius: 2.5rem;
+            transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 100; max-height: 92dvh; display: flex; flex-direction: column;
+            box-shadow: 0 -20px 50px rgba(0,0,0,0.15);
+        }
+        #itemBottomSheet.open { transform: translateY(0); }
+        .sheet-handle { width: 48px; height: 6px; background: #f3f4f6; border-radius: 3px; margin: 16px auto; shrink-0; }
+        .sheet-content { flex: 1; overflow-y: auto; padding-bottom: calc(var(--sab) + 2rem); }
+        #sheetOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 90; }
+        #sheetOverlay.show { opacity: 1; pointer-events: auto; }
+
+        /* CV Engine Loading State */
+        #cvLoading {
+            position: fixed; inset: 0; background: #78350f; z-index: 1000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: white; transition: opacity 0.5s ease;
+        }
+    </style>
+</head>
+<body class="bg-stone-50 h-[100dvh] overflow-hidden font-sans text-stone-900">
+
+    <!-- Global CV Loader -->
+    <div id="cvLoading">
+        <div class="relative w-24 h-24 mb-6">
+            <div class="absolute inset-0 border-4 border-white/20 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-white rounded-full border-t-transparent animate-spin"></div>
+            <span class="iconify absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl" data-icon="mdi:gold"></span>
+        </div>
+        <h1 class="text-3xl font-black tracking-tighter mb-2">CoinVault</h1>
+        <p class="text-amber-100 text-sm font-medium animate-pulse uppercase tracking-widest">Warming up CV Engine</p>
+    </div>
+
+    <!-- Desktop Sidebar -->
+    <aside id="sidebar" class="hidden fixed left-0 top-0 bottom-0 w-[280px] bg-white border-r border-stone-100 flex-col p-6 z-50">
+        <div class="text-2xl font-black text-amber-900 flex items-center gap-3 mb-10">
+            <div class="bg-amber-700 p-2 rounded-xl text-white shadow-lg shadow-amber-100">
+                <span class="iconify" data-icon="mdi:gold"></span>
+            </div>
+            CoinVault
+        </div>
+        <nav class="flex-1 space-y-2">
+            <button data-nav="dashboardView" class="w-full flex items-center gap-4 px-4 py-3 rounded-2xl font-bold text-amber-700 bg-amber-50 transition-all">
+                <span class="iconify text-2xl" data-icon="mdi:view-dashboard"></span> Dashboard
+            </button>
+            <button data-nav="collectionView" class="w-full flex items-center gap-4 px-4 py-3 rounded-2xl font-bold text-stone-400 hover:bg-stone-50 transition-all">
+                <span class="iconify text-2xl" data-icon="mdi:gold"></span> My Collection
+            </button>
+            <button data-nav="captureView" class="w-full flex items-center gap-4 px-4 py-3 rounded-2xl font-bold text-stone-400 hover:bg-stone-50 transition-all">
+                <span class="iconify text-2xl" data-icon="mdi:camera-plus-outline"></span> Scan New Items
+            </button>
+        </nav>
+        <div class="pt-6 border-t border-stone-50">
+            <button data-nav="settingsView" class="w-full flex items-center gap-4 px-4 py-3 rounded-2xl font-bold text-stone-400 hover:bg-stone-50 transition-all">
+                <span class="iconify text-2xl" data-icon="mdi:cog-outline"></span> Settings
+            </button>
+        </div>
+    </aside>
+
+    <!-- Header (Mobile Only) -->
+    <header id="mainHeader" class="lg:hidden bg-white/80 backdrop-blur-xl p-4 pt-[calc(var(--sat)+1rem)] flex justify-between items-center z-30 border-b border-stone-100">
+        <div class="text-xl font-black text-amber-900 flex items-center gap-2">
+            <span class="iconify" data-icon="mdi:gold"></span>
+            CoinVault
+        </div>
+        <button data-nav="settingsView" class="p-2.5 rounded-2xl bg-stone-50 text-stone-400">
+            <span class="iconify" data-icon="mdi:cog" data-width="22"></span>
+        </button>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="mainContent" class="flex-1 relative">
+        
+        <!-- Dashboard View -->
+        <section id="dashboardView" class="view-section p-4 lg:p-10 space-y-6 overflow-y-auto">
+            <div class="flex justify-between items-end">
+                <div>
+                    <p class="text-sm font-bold text-stone-400 uppercase tracking-widest mb-1">Collection Statistics</p>
+                    <h2 class="text-4xl font-black text-stone-900 tracking-tight">Dashboard</h2>
+                </div>
+                <button data-nav="captureView" class="hidden lg:flex bg-amber-700 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-amber-200 items-center gap-2 hover:scale-105 transition-transform">
+                    <span class="iconify" data-icon="mdi:camera-plus"></span> Scan New
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 flex flex-col justify-center">
+                    <p class="text-xs text-stone-400 uppercase font-black tracking-widest mb-2">Total Items</p>
+                    <p class="text-5xl font-black text-stone-900" id="totalItemsStat">0</p>
+                </div>
+                <div class="bg-amber-700 p-8 rounded-[2.5rem] shadow-xl shadow-amber-100 flex flex-col justify-center text-white">
+                    <p class="text-xs text-amber-200 uppercase font-black tracking-widest mb-2">Estimated Value</p>
+                    <p class="text-5xl font-black" id="totalValueStat">$0</p>
+                </div>
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 h-64 md:col-span-2 lg:col-span-1">
+                    <canvas id="valueChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 min-h-[400px]">
+                <h3 class="text-xl font-black mb-6">Recent Finds</h3>
+                <div id="recentGrid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
+            </div>
+            <div class="h-24 lg:hidden"></div>
+        </section>
+
+        <!-- Collection View -->
+        <section id="collectionView" class="view-section hidden p-4 lg:p-10">
+            <div class="flex flex-col space-y-6 mb-8">
+                <h2 class="text-4xl font-black text-stone-900 tracking-tight">The Vault</h2>
+                <div class="flex flex-col lg:flex-row gap-4">
+                    <div class="relative flex-1">
+                        <span class="iconify absolute left-4 top-1/2 transform -translate-y-1/2 text-stone-400 text-xl" data-icon="mdi:magnify"></span>
+                        <input type="text" id="searchInput" placeholder="Search by denomination, country, or year..." class="w-full pl-12 pr-4 py-4 bg-white border border-stone-100 rounded-2xl shadow-sm focus:ring-4 focus:ring-amber-500/10 outline-none transition-all">
+                    </div>
+                    <div class="flex gap-2">
+                        <select id="countryFilter" class="bg-white border border-stone-100 rounded-2xl px-6 py-4 shadow-sm outline-none font-bold text-stone-600 appearance-none">
+                            <option value="All">All Countries</option>
+                        </select>
+                        <select id="sortOrder" class="bg-white border border-stone-100 rounded-2xl px-6 py-4 shadow-sm outline-none font-bold text-stone-600 appearance-none">
+                            <option value="newest">Newest</option>
+                            <option value="valueHigh">Top Value</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="collectionGrid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-6 pb-24 overflow-y-auto pr-2"></div>
+        </section>
+
+        <!-- Capture View -->
+        <section id="captureView" class="view-section hidden !p-0 bg-black text-white flex flex-col">
+            <!-- Capture Header -->
+            <div class="bg-zinc-950 p-4 pt-[calc(var(--sat)+1rem)] flex justify-between items-center border-b border-white/5 z-20">
+                <button data-nav="dashboardView" class="p-3 rounded-2xl bg-white/5 text-white hover:bg-white/10 transition-colors">
+                    <span class="iconify text-xl" data-icon="mdi:arrow-left"></span>
+                </button>
+                <div class="flex flex-col items-center">
+                    <div id="detectionStatus" class="text-[10px] font-black uppercase tracking-widest text-amber-400">Center Item in Frame</div>
+                    <div class="text-[8px] text-zinc-500 font-bold uppercase mt-0.5">Numismatic AI Scan</div>
+                </div>
+                <div class="flex gap-2">
+                    <button id="openCvTuneBtn" class="p-3 rounded-2xl bg-white/5 text-white hover:bg-white/10 transition-colors">
+                        <span class="iconify text-xl" data-icon="mdi:tune-variant"></span>
+                    </button>
+                    <button id="toggleAutoBtn" class="p-3 rounded-2xl bg-amber-700 text-white shadow-lg shadow-amber-900/20">
+                        <span class="iconify text-xl" data-icon="mdi:auto-fix"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Capture Viewport -->
+            <div class="flex-1 relative bg-zinc-900 overflow-hidden">
+                <video id="cameraVideo" autoplay playsinline muted class="w-full h-full object-contain"></video>
+                <canvas id="captureCanvas" class="absolute inset-0 w-full h-full object-contain z-10 pointer-events-none"></canvas>
+                
+                <!-- Circular Target Guide -->
+                <div id="captureGuide" class="absolute inset-0 pointer-events-none flex items-center justify-center p-12">
+                    <div class="w-64 h-64 border-2 border-white/10 rounded-full relative">
+                        <div class="absolute -top-1 -left-1 w-12 h-12 border-t-[6px] border-l-[6px] border-white/30 rounded-tl-full"></div>
+                        <div class="absolute -top-1 -right-1 w-12 h-12 border-t-[6px] border-r-[6px] border-white/30 rounded-tr-full"></div>
+                        <div class="absolute -bottom-1 -left-1 w-12 h-12 border-b-[6px] border-l-[6px] border-white/30 rounded-bl-full"></div>
+                        <div class="absolute -bottom-1 -right-1 w-12 h-12 border-b-[6px] border-r-[6px] border-white/30 rounded-br-full"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Capture Footer -->
+            <div class="bg-zinc-950 p-8 pb-[calc(var(--sab)+2rem)] flex justify-around items-center border-t border-white/5 z-20">
+                <!-- Upload -->
+                <label class="p-5 rounded-full bg-white/5 text-zinc-400 cursor-pointer hover:bg-white/10 hover:text-white transition-all">
+                    <span class="iconify text-2xl" data-icon="mdi:image-multiple"></span>
+                    <input type="file" accept="image/*" class="hidden" id="uploadPhotoInput">
+                </label>
+
+                <!-- Trigger -->
+                <div class="relative flex items-center justify-center">
+                    <button id="takePhotoBtn" class="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-all border-[8px] border-zinc-800">
+                        <div class="w-full h-full border-4 border-zinc-200 rounded-full"></div>
+                    </button>
+                    <!-- Retake appears floating above -->
+                    <button id="retakePhotoBtn" class="hidden absolute -top-20 bg-zinc-800 p-4 rounded-full text-white border border-white/10 shadow-2xl animate-in fade-in slide-in-from-bottom-4">
+                        <span class="iconify text-2xl" data-icon="mdi:refresh"></span>
+                    </button>
+                </div>
+
+                <!-- Action -->
+                <button id="processItemsBtn" class="p-5 rounded-full bg-green-600 text-white shadow-xl shadow-green-900/40 opacity-30 pointer-events-none transition-all active:scale-95">
+                    <span class="iconify text-2xl" data-icon="mdi:check-bold"></span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Settings View -->
+        <section id="settingsView" class="view-section hidden p-6 lg:p-10 space-y-8 overflow-y-auto">
+            <h2 class="text-4xl font-black text-stone-900">Settings</h2>
+            <div class="max-w-2xl space-y-6">
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xl font-black flex items-center gap-3">
+                            <span class="iconify text-amber-700" data-icon="mdi:magnify-scan"></span> Scan Mode
+                        </h3>
+                    </div>
+                    <div class="flex p-1 bg-stone-100 rounded-2xl">
+                        <button id="modeCoinBtn" class="flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all bg-white shadow-sm text-amber-700">Coins</button>
+                        <button id="modeNoteBtn" class="flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all text-stone-400">Notes</button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xl font-black flex items-center gap-3">
+                            <span class="iconify text-amber-700" data-icon="mdi:eye-settings"></span> CV Engine Settings
+                        </h3>
+                        <div class="group relative">
+                            <span class="iconify text-stone-300 cursor-help" data-icon="mdi:information-outline"></span>
+                            <div class="absolute right-0 bottom-full mb-2 w-64 p-4 bg-zinc-900 text-white text-[10px] rounded-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 leading-relaxed shadow-2xl">
+                                <p class="font-bold mb-1 text-amber-400">Settings Guide:</p>
+                                • <b class="text-white">Param 1:</b> Edge detector sensitivity.<br>
+                                • <b class="text-white">Param 2:</b> Accumulator threshold. Lower = more circles (can cause false detections).<br>
+                                • <b class="text-white">Blur:</b> Smooths noise. Higher helps in grainy lighting.<br>
+                                • <b class="text-white">Min Radius:</b> Smallest coin size to detect.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Param 1</label>
+                            <input type="range" id="cvParam1" min="50" max="200" step="5" value="100" class="w-full accent-amber-700">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Param 2</label>
+                            <input type="range" id="cvParam2" min="10" max="100" step="5" value="30" class="w-full accent-amber-700">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Blur Level</label>
+                            <input type="range" id="cvBlur" min="1" max="15" step="2" value="9" class="w-full accent-amber-700">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Min Radius</label>
+                            <input type="range" id="cvMinRadius" min="10" max="100" step="5" value="20" class="w-full accent-amber-700">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 space-y-6">
+                    <h3 class="text-xl font-black flex items-center gap-3">
+                        <span class="iconify text-amber-700" data-icon="mdi:key"></span> API Configuration
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Gemini API Key</label>
+                            <input type="password" id="apiKeyInput" class="w-full bg-stone-50 border-none rounded-2xl p-5 focus:ring-4 focus:ring-amber-500/10 outline-none transition-all" placeholder="Enter your key...">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Selected Model</label>
+                            <select id="modelSelect" class="w-full bg-stone-50 border-none rounded-2xl p-5 font-bold text-stone-800 outline-none appearance-none"></select>
+                        </div>
+                        <button id="saveSettingsBtn" class="w-full bg-amber-700 text-white py-5 rounded-2xl font-bold shadow-lg shadow-amber-100 active:scale-[0.98] transition-all">Save Changes</button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100 space-y-6">
+                    <h3 class="text-xl font-black flex items-center gap-3">
+                        <span class="iconify text-stone-400" data-icon="mdi:database"></span> Data & Privacy
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button id="exportDataBtn" class="flex items-center justify-center gap-3 py-5 bg-stone-50 text-amber-700 rounded-2xl font-bold border border-amber-50 transition-all hover:bg-amber-50">
+                            <span class="iconify text-xl" data-icon="mdi:download"></span> Export Vault
+                        </button>
+                        <label class="flex items-center justify-center gap-3 py-5 bg-stone-50 text-stone-600 rounded-2xl font-bold border border-stone-100 cursor-pointer transition-all hover:bg-stone-100">
+                            <span class="iconify text-xl" data-icon="mdi:upload"></span> Import Vault
+                            <input type="file" id="importFileInput" class="hidden" accept=".json">
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="h-24 lg:hidden"></div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Navigation (Mobile Only) -->
+    <nav id="bottomNav" class="lg:hidden bg-white/80 backdrop-blur-2xl border-t border-stone-50 flex justify-around p-2 pb-[calc(var(--sab)+0.75rem)] fixed bottom-0 w-full z-40">
+        <button data-nav="dashboardView" class="flex flex-col items-center p-3 text-amber-700 w-1/4">
+            <span class="iconify text-2xl" data-icon="mdi:view-dashboard"></span>
+            <span class="text-[9px] mt-1.5 font-black uppercase tracking-widest">Dash</span>
+        </button>
+        <button data-nav="captureView" class="flex flex-col items-center p-3 text-stone-400 w-1/4">
+            <div class="bg-amber-700 rounded-2xl p-4 -mt-12 shadow-2xl shadow-amber-200 border-[6px] border-white text-white transform active:scale-90 transition-transform">
+                <span class="iconify text-3xl" data-icon="mdi:camera-plus"></span>
+            </div>
+            <span class="text-[9px] mt-1 font-black uppercase tracking-widest">Scan</span>
+        </button>
+        <button data-nav="collectionView" class="flex flex-col items-center p-3 text-stone-400 w-1/4">
+            <span class="iconify text-2xl" data-icon="mdi:gold"></span>
+            <span class="text-[9px] mt-1.5 font-black uppercase tracking-widest">Vault</span>
+        </button>
+    </nav>
+
+    <!-- Bottom Sheet for Details -->
+    <div id="sheetOverlay"></div>
+    <div id="itemBottomSheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-content">
+            <div class="p-4 flex flex-col items-center">
+                <img id="detailImage" src="" class="w-full max-w-xs h-64 object-contain rounded-3xl shadow-xl mb-6 bg-stone-50">
+                <div class="w-full space-y-4 px-2">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Denomination</label>
+                        <input type="text" id="editDenom" class="w-full bg-stone-50 border-none rounded-2xl p-4 font-bold text-stone-800">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Country</label>
+                            <input type="text" id="editCountry" class="w-full bg-stone-50 border-none rounded-2xl p-4 font-bold text-stone-800">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Year</label>
+                            <input type="text" id="editYear" class="w-full bg-stone-50 border-none rounded-2xl p-4 font-bold text-stone-800">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Mint Mark</label>
+                            <input type="text" id="editMint" class="w-full bg-stone-50 border-none rounded-2xl p-4 font-bold text-stone-800">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Metal</label>
+                            <input type="text" id="editMetal" class="w-full bg-stone-50 border-none rounded-2xl p-4 font-bold text-stone-800">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Value ($)</label>
+                            <input type="number" id="editValue" step="0.01" class="w-full bg-stone-50 border-none rounded-2xl p-4 font-bold text-green-600">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Grade</label>
+                            <input type="text" id="editGrade" class="w-full bg-stone-50 border-none rounded-2xl p-4 font-bold text-stone-800">
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Value Citation / Research</label>
+                        <input type="text" id="editCitation" class="w-full bg-stone-50 border-none rounded-2xl p-4 text-stone-800 text-sm">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Description</label>
+                        <textarea id="editDesc" class="w-full bg-stone-50 border-none rounded-2xl p-4 text-stone-800 text-sm h-24"></textarea>
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button id="deleteDetailBtn" class="flex-none p-4 bg-red-50 text-red-600 rounded-2xl font-bold flex items-center justify-center">
+                            <span class="iconify" data-icon="mdi:trash-can-outline" data-width="24"></span>
+                        </button>
+                        <button id="cancelEditBtn" class="flex-1 py-4 bg-stone-100 text-stone-600 rounded-2xl font-bold">Cancel</button>
+                        <button id="saveEditBtn" class="flex-2 py-4 bg-amber-700 text-white rounded-2xl font-bold shadow-lg shadow-amber-100">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CV Settings Bottom Sheet (HUD Style) -->
+    <div id="cvSettingsSheet" class="fixed bottom-0 left-0 right-0 glass-dark translate-y-full transition-transform duration-400 z-[110] shadow-2xl p-6 lg:max-w-md lg:left-auto lg:right-6 lg:top-24 lg:bottom-auto lg:rounded-[2.5rem] lg:translate-y-0 lg:hidden">
+        <div class="sheet-handle lg:hidden !bg-white/20"></div>
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-black flex items-center gap-3 text-white">
+                <span class="iconify text-amber-400" data-icon="mdi:eye-settings"></span> Engine Tuning
+            </h3>
+            <button id="closeCvTuneBtn" class="p-2 rounded-xl bg-white/5 text-white/40 hover:text-white transition-colors">
+                <span class="iconify" data-icon="mdi:close"></span>
+            </button>
+        </div>
+        
+        <div class="grid grid-cols-1 gap-y-4 max-h-[60dvh] overflow-y-auto pr-2 custom-scrollbar">
+            <!-- Lighting & Noise -->
+            <div class="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-4">
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between">
+                        <label class="text-[9px] font-black text-white/40 uppercase tracking-widest">Contrast (CLAHE)</label>
+                        <span id="valClahe" class="text-[10px] font-black text-amber-400">2.0</span>
+                    </div>
+                    <input type="range" id="tuneClahe" min="1" max="10" step="0.5" value="2.0" class="w-full accent-amber-500 bg-white/10 h-1 rounded-lg appearance-none">
+                </div>
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between">
+                        <label class="text-[9px] font-black text-white/40 uppercase tracking-widest">Smoothing (Bilateral)</label>
+                        <span id="valBilateral" class="text-[10px] font-black text-amber-400">75</span>
+                    </div>
+                    <input type="range" id="tuneBilateral" min="10" max="200" step="5" value="75" class="w-full accent-amber-500 bg-white/10 h-1 rounded-lg appearance-none">
+                </div>
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between">
+                        <label class="text-[9px] font-black text-white/40 uppercase tracking-widest">Circle Detect (P2)</label>
+                        <span id="valParam2" class="text-[10px] font-black text-amber-400">30</span>
+                    </div>
+                    <input type="range" id="tuneParam2" min="10" max="100" step="5" value="30" class="w-full accent-amber-500 bg-white/10 h-1 rounded-lg appearance-none">
+                </div>
+            </div>
+            
+            <!-- Edge & Radius -->
+            <div class="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-4">
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between">
+                        <label class="text-[9px] font-black text-white/40 uppercase tracking-widest">Edge Sens. (P1)</label>
+                        <span id="valParam1" class="text-[10px] font-black text-amber-400">100</span>
+                    </div>
+                    <input type="range" id="tuneParam1" min="50" max="300" step="5" value="100" class="w-full accent-amber-500 bg-white/10 h-1 rounded-lg appearance-none">
+                </div>
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between">
+                        <label class="text-[9px] font-black text-white/40 uppercase tracking-widest">Min Radius</label>
+                        <span id="valMinRadius" class="text-[10px] font-black text-amber-400">20</span>
+                    </div>
+                    <input type="range" id="tuneMinRadius" min="10" max="150" step="5" value="20" class="w-full accent-amber-500 bg-white/10 h-1 rounded-lg appearance-none">
+                </div>
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between">
+                        <label class="text-[9px] font-black text-white/40 uppercase tracking-widest">Blur Level</label>
+                        <span id="valBlur" class="text-[10px] font-black text-amber-400">9</span>
+                    </div>
+                    <input type="range" id="tuneBlur" min="1" max="21" step="2" value="9" class="w-full accent-amber-500 bg-white/10 h-1 rounded-lg appearance-none">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback UI -->
+    <div id="toast" class="hidden"></div>
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black/90 backdrop-blur-md z-[110] flex flex-col items-center justify-center text-white p-10 text-center">
+        <div class="relative w-24 h-24 mb-6">
+            <div class="absolute inset-0 border-4 border-amber-500/20 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-amber-500 rounded-full border-t-transparent animate-spin"></div>
+            <span class="iconify absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl text-amber-500" data-icon="mdi:creation"></span>
+        </div>
+        <p id="loadingText" class="text-xl font-bold mb-2">Analyzing treasure...</p>
+        <p class="text-stone-400 text-sm">Our AI is identifying your coins and estimating numismatic value.</p>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

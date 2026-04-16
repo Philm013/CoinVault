@@ -288,7 +288,9 @@ export const UI = {
             if (selectedSort === 'valueHigh') {
                 return (Number(b.estimatedValue) || 0) - (Number(a.estimatedValue) || 0);
             }
-            return new Date(b.dateAdded || 0) - new Date(a.dateAdded || 0);
+            const bTime = Date.parse(b.dateAdded);
+            const aTime = Date.parse(a.dateAdded);
+            return (Number.isFinite(bTime) ? bTime : Number.NEGATIVE_INFINITY) - (Number.isFinite(aTime) ? aTime : Number.NEGATIVE_INFINITY);
         });
 
         this.renderGrid(filtered);
@@ -339,7 +341,7 @@ export const UI = {
 
                     for (const [index, raw] of payload.entries()) {
                         const item = this.normalizeImportedItem(raw, index);
-                        await DB.updateItem(item);
+                        await DB.addItem(item);
                     }
 
                     await this.app.loadCollection();
@@ -426,7 +428,7 @@ export const UI = {
             }
 
             const modelPrefix = 'models/';
-            const modelNames = models.map(model => model.name.replace(modelPrefix, ''));
+            const modelNames = models.map(model => model.name.replaceAll(modelPrefix, ''));
             modelSelect.innerHTML = modelNames.map(name => `<option value="${name}">${name}</option>`).join('');
 
             const hasSelected = modelNames.includes(selected);

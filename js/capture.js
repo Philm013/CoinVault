@@ -1,18 +1,42 @@
 /* global cv */
+/**
+ * Capture subsystem:
+ * - Handles camera lifecycle and uploaded images
+ * - Detects coins/notes with OpenCV
+ * - Lets users refine selections manually
+ * - Exports selected regions as image crops for AI processing
+ */
 export const Capture = {
+    /** @type {HTMLVideoElement|null} */
     videoEl: null,
+    /** @type {HTMLCanvasElement|null} */
     canvasEl: null,
+    /** @type {CanvasRenderingContext2D|null} */
     ctx: null,
+    /** @type {MediaStream|null} */
     stream: null,
-    boxes: [], // [{x, y, w, h, isCircle: true}]
+    /** @type {Array<{x:number, y:number, w:number, h:number, isCircle:boolean}>} Active user-selected regions. */
+    boxes: [],
+    /** @type {boolean} Whether pointer drag currently draws a new region. */
     isDrawing: false,
     startX: 0,
     startY: 0,
+    /** @type {HTMLImageElement|null} Snapshot image used once capture is frozen. */
     currentImage: null,
+    /** @type {boolean} Whether automatic detection is enabled from UI toggle. */
     isAutoDetecting: true,
+    /** @type {number|null} Reserved for interval-based detection loops. */
     detectInterval: null,
+    /** @type {Array<{x:number, y:number, w:number, h:number, isCircle:boolean}>} Last auto-detected regions. */
     lastDetectedCircles: [],
 
+    /**
+     * Converts pointer offsets (CSS pixels) to real canvas/image coordinates.
+     * Accounts for letterboxing when canvas aspect ratio differs from layout box.
+     * @param {number} offsetX
+     * @param {number} offsetY
+     * @returns {{x:number,y:number}}
+     */
     getImgCoords(offsetX, offsetY) {
         const rect = this.canvasEl.getBoundingClientRect();
         const canvasRatio = this.canvasEl.width / this.canvasEl.height;
@@ -33,17 +57,27 @@ export const Capture = {
         return { x: (offsetX - renderX) * scale, y: (offsetY - renderY) * scale };
     },
 
+    /**
+     * Binds capture module to existing video/canvas elements.
+     * @param {string} videoElementId
+     * @param {string} canvasElementId
+     */
     init(videoElementId, canvasElementId) {
         this.videoEl = document.getElementById(videoElementId);
         this.canvasEl = document.getElementById(canvasElementId);
+        // `willReadFrequently` improves performance when sampling pixels often.
         this.ctx = this.canvasEl.getContext('2d', { willReadFrequently: true });
         this.bindEvents();
     },
 
+    /**
+     * Registers mouse/touch controls and capture-mode toggles.
+     */
     bindEvents() {
         this.canvasEl.addEventListener('mousedown', this.onPointerDown.bind(this));
         this.canvasEl.addEventListener('mousemove', this.onPointerMove.bind(this));
         this.canvasEl.addEventListener('mouseup', this.onPointerUp.bind(this));
+        // Touch events are converted into mouse-like offsets for shared handlers.
         const getTouchOffset = (touch) => {
             const rect = this.canvasEl.getBoundingClientRect();
             return { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top };
@@ -68,6 +102,10 @@ export const Capture = {
         });
     },
 
+    /**
+     * Starts rear-camera stream and resets selection state for a new session.
+     * @returns {Promise<void>}
+     */
     async startCamera() {
         try {
             this.stream = await navigator.mediaDevices.getUserMedia({
@@ -76,6 +114,7 @@ export const Capture = {
             });
             this.videoEl.srcObject = this.stream;
             this.videoEl.onloadedmetadata = () => {
+                // Keep canvas resolution in sync with camera frame resolution.
                 this.canvasEl.width = this.videoEl.videoWidth;
                 this.canvasEl.height = this.videoEl.videoHeight;
                 this.videoEl.play();
@@ -92,11 +131,18 @@ export const Capture = {
         }
     },
 
+    /**
+     * Stops camera stream tracks and hides the live preview.
+     */
     stopCamera() {
         if (this.stream) { this.stream.getTracks().forEach(track => track.stop()); this.stream = null; }
         this.videoEl.style.display = 'none';
     },
 
+    /**
+     * Loads a chosen image file into the canvas workflow and auto-detects regions.
+     * @param {File} file
+     */
     loadUploadedImage(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -116,6 +162,10 @@ export const Capture = {
         reader.readAsDataURL(file);
     },
 
+    /**
+     * Detects either circular coins or rectangular notes based on settings.
+     * @returns {Promise<void>}
+     */
     async detectCircles() {
         const source = this.currentImage || this.videoEl;
         const srcW = source.width || source.videoWidth;
@@ -137,6 +187,7 @@ export const Capture = {
         const blurSize = parseInt(await DB.getSetting('cvBlur')) || 9;
         const minR = parseInt(await DB.getSetting('cvMinRadius')) || 20;
 
+        // Downscale to a fixed working width for faster and more stable detection.
         const width = 800;
         const height = Math.round(width * (srcH / srcW));
         const tempCanvas = document.createElement('canvas');
@@ -168,6 +219,7 @@ export const Capture = {
         cv.HoughCircles(blurred, circles, cv.HOUGH_GRADIENT, 1, 50, p1, p2, minR, 200);
 
         const found = [];
+        // Scale detections back to original image coordinates.
         const scale = srcW / width;
 
         for (let i = 0; i < circles.cols; ++i) {
@@ -190,6 +242,13 @@ export const Capture = {
         }
     },
 
+    /**
+     * Detects paper note candidates using contour geometry.
+     * @param {HTMLImageElement|HTMLVideoElement} source
+     * @param {number} srcW
+     * @param {number} srcH
+     * @returns {Promise<void>}
+     */
     async detectNotes(source, srcW, srcH) {
         // Fetch custom settings
         const { DB } = await import('./db.js');
@@ -232,6 +291,7 @@ export const Capture = {
         cv.findContours(thresh, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
         const found = [];
+        // Convert detections from working canvas scale to original source scale.
         const scale = srcW / width;
 
         for (let i = 0; i < contours.size(); ++i) {
@@ -264,6 +324,9 @@ export const Capture = {
         }
     },
 
+    /**
+     * Captures the current video frame into a still image and runs detection.
+     */
     takePhoto() {
         if (!this.videoEl.videoWidth) return;
         this.ctx.drawImage(this.videoEl, 0, 0, this.canvasEl.width, this.canvasEl.height);
@@ -274,6 +337,10 @@ export const Capture = {
         document.getElementById('detectionStatus').textContent = "Analysis Complete";
     },
 
+    /**
+     * Starts region-creation interaction on pointer down.
+     * @param {{offsetX:number,offsetY:number}} e
+     */
     onPointerDown(e) {
         if (!this.currentImage) return;
         this.isDrawing = true;
@@ -283,6 +350,10 @@ export const Capture = {
         this.startY = coords.y;
     },
 
+    /**
+     * Draws a live preview circle while dragging.
+     * @param {{offsetX:number,offsetY:number}} e
+     */
     onPointerMove(e) {
         if (!this.isDrawing) return;
         const coords = this.getImgCoords(e.offsetX, e.offsetY);
@@ -301,11 +372,16 @@ export const Capture = {
         }
     },
 
+    /**
+     * Handles tap-to-toggle on detected regions or drag-to-create manual regions.
+     * @param {{offsetX:number,offsetY:number}} e
+     */
     onPointerUp(e) {
         if (!this.isDrawing) return;
         this.isDrawing = false;
         const coords = this.getImgCoords(e.offsetX, e.offsetY);
         if (!this.moved) {
+            // A tap toggles one existing auto-detected region.
             const tappedIdx = this.lastDetectedCircles.findIndex(c => {
                 if (c.isCircle) {
                     const r = c.w / 2;
@@ -350,6 +426,9 @@ export const Capture = {
         }
     },
 
+    /**
+     * Repaints current image plus all selected regions.
+     */
     redraw() {
         this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height);
         if (this.currentImage) this.ctx.drawImage(this.currentImage, 0, 0);
@@ -374,13 +453,21 @@ export const Capture = {
         });
     },
 
+    /**
+     * Clears all current selection regions.
+     */
     clearBoxes() { this.boxes = []; this.redraw(); },
 
+    /**
+     * Crops each selected region and returns base64 JPEGs for AI analysis.
+     * @returns {string[]}
+     */
     extractCrops() {
         const crops = [];
         if (!this.currentImage || typeof cv === 'undefined') return crops;
         const src = cv.imread(this.canvasEl);
         this.boxes.forEach(box => {
+            // Clamp ROI so selection cannot exceed image bounds.
             const rect = new cv.Rect(
                 Math.max(0, Math.round(box.x)), Math.max(0, Math.round(box.y)),
                 Math.min(src.cols - box.x, Math.round(box.w)), Math.min(src.rows - box.y, Math.round(box.h))

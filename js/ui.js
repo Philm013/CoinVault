@@ -1,21 +1,44 @@
 /* global Chart */
+/**
+ * UI controller for CoinVault.
+ * Responsible for event binding, view transitions, rendering, and feedback to users.
+ */
 export const UI = {
+    /** Reference to the App orchestrator (injected from app.js). */
     app: null,
+    /** ID of currently visible view section. */
     currentView: 'dashboardView',
+    /** Active Chart.js instance for dashboard value visualization. */
     chartInstance: null,
+    /** Full in-memory item list used as the source for filtered rendering. */
     allItems: [],
 
+    /**
+     * Initializes all UI bindings and loads persisted settings into controls.
+     * @param {object} appInstance - App orchestrator instance used for business actions.
+     */
     init(appInstance) {
         this.app = appInstance;
-        this.bindNavigation();
-        this.bindCaptureActions();
-        this.bindSettings();
-        this.bindCollectionControls();
-        this.bindDataManagement();
-        this.bindBottomSheet();
+        const binders = [
+            'bindNavigation',
+            'bindCaptureActions',
+            'bindSettings',
+            'bindCollectionControls',
+            'bindDataManagement',
+            'bindBottomSheet'
+        ];
+        binders.forEach(name => {
+            const fn = this[name];
+            if (typeof fn === 'function') {
+                fn.call(this);
+            } else {
+                console.warn(`UI init skipped missing binder: ${name}`);
+            }
+        });
         
         // Initial setup for models and CV settings
         import('./db.js').then(module => {
+            // Restore API key and model choices into the settings form.
             module.DB.getSetting('geminiApiKey').then(key => {
                 if (key) {
                     document.getElementById('apiKeyInput').value = key;
@@ -32,6 +55,7 @@ export const UI = {
             });
 
             // Load CV Settings
+            // Keep both main settings page inputs and quick-tuning sliders in sync.
             const cvSettings = ['cvParam1', 'cvParam2', 'cvClahe', 'cvBilateral', 'cvBlur', 'cvMinRadius'];
             cvSettings.forEach(s => {
                 module.DB.getSetting(s).then(val => {
@@ -55,6 +79,9 @@ export const UI = {
         this.bindCvTuning();
     },
 
+    /**
+     * Wires the CV tuning bottom sheet and live slider updates.
+     */
     bindCvTuning() {
         const sheet = document.getElementById('cvSettingsSheet');
         const openBtn = document.getElementById('openCvTuneBtn');
@@ -100,6 +127,9 @@ export const UI = {
         });
     },
 
+    /**
+     * Binds navigation buttons that switch between app sections.
+     */
     bindNavigation() {
         document.querySelectorAll('[data-nav]').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -110,6 +140,9 @@ export const UI = {
         });
     },
 
+    /**
+     * Wires camera/upload/process controls in the capture view.
+     */
     bindCaptureActions() {
         const Capture = import('./capture.js').then(m => m.Capture);
         
@@ -143,6 +176,10 @@ export const UI = {
         });
     },
 
+    /**
+     * Updates scan mode toggle button styles and guide overlay shape.
+     * @param {'coin'|'note'} mode
+     */
     updateModeUI(mode) {
         const coinBtn = document.getElementById('modeCoinBtn');
         const noteBtn = document.getElementById('modeNoteBtn');
@@ -169,6 +206,9 @@ export const UI = {
         }
     },
 
+    /**
+     * Wires settings interactions (scan mode selection + save action).
+     */
     bindSettings() {
         document.getElementById('modeCoinBtn').addEventListener('click', async () => {
             const module = await import('./db.js');
@@ -198,6 +238,10 @@ export const UI = {
         });
     },
 
+    /**
+     * Shows the requested view and updates contextual UI state.
+     * @param {string} viewId
+     */
     switchView(viewId) {
         document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
         document.getElementById(viewId).classList.remove('hidden');
@@ -244,18 +288,262 @@ export const UI = {
         }
     },
 
+    /**
+     * Binds collection search/filter/sort controls.
+     */
+    bindCollectionControls() {
+        const searchInput = document.getElementById('searchInput');
+        const countryFilter = document.getElementById('countryFilter');
+        const sortOrder = document.getElementById('sortOrder');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', () => this.applyCollectionFilters());
+        }
+        if (countryFilter) {
+            countryFilter.addEventListener('change', () => this.applyCollectionFilters());
+        }
+        if (sortOrder) {
+            sortOrder.addEventListener('change', () => this.applyCollectionFilters());
+        }
+    },
+
+    /**
+     * Applies current search/filter/sort controls to in-memory items and re-renders grid.
+     */
+    applyCollectionFilters() {
+        const searchInput = document.getElementById('searchInput');
+        const countryFilter = document.getElementById('countryFilter');
+        const sortOrder = document.getElementById('sortOrder');
+
+        const searchTerm = (searchInput?.value || '').trim().toLowerCase();
+        const selectedCountry = countryFilter?.value || 'All';
+        const SORT_NEWEST = 'newest';
+        const SORT_VALUE_HIGH = 'valueHigh';
+        const selectedSort = sortOrder?.value === SORT_VALUE_HIGH ? SORT_VALUE_HIGH : SORT_NEWEST;
+
+        let filtered = [...this.allItems];
+
+        if (searchTerm) {
+            // Search across denomination, country, and year for quick discovery.
+            filtered = filtered.filter(item => {
+                const denom = String(item.denomination || '').toLowerCase();
+                const country = String(item.country || '').toLowerCase();
+                const year = String(item.year || '').toLowerCase();
+                return denom.includes(searchTerm) || country.includes(searchTerm) || year.includes(searchTerm);
+            });
+        }
+
+        if (selectedCountry !== 'All') {
+            filtered = filtered.filter(item => item.country === selectedCountry);
+        }
+
+        // Sort either by highest estimated value or by newest import/capture date.
+        filtered.sort((a, b) => {
+            if (selectedSort === SORT_VALUE_HIGH) {
+                return (Number(b.estimatedValue) || 0) - (Number(a.estimatedValue) || 0);
+            }
+            const getSortTimestamp = (item) => {
+                const parsed = Date.parse(item.dateAdded);
+                return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+            };
+            return getSortTimestamp(b) - getSortTimestamp(a);
+        });
+
+        this.renderGrid(filtered);
+    },
+
+    /**
+     * Binds import/export controls for vault backup and restore.
+     */
+    bindDataManagement() {
+        const exportBtn = document.getElementById('exportDataBtn');
+        const importInput = document.getElementById('importFileInput');
+
+        if (exportBtn) {
+            exportBtn.addEventListener('click', async () => {
+                try {
+                    const { DB } = await import('./db.js');
+                    const items = await DB.getAllItems();
+                    const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `coinvault-export-${new Date().toISOString().slice(0, 10)}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                    this.showToast('Vault exported.', 'success');
+                } catch (error) {
+                    console.error('Export failed:', error);
+                    this.showToast('Export failed.', 'error');
+                }
+            });
+        }
+
+        if (importInput) {
+            importInput.addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+
+                try {
+                    const text = await file.text();
+                    const payload = JSON.parse(text);
+
+                    if (!Array.isArray(payload)) {
+                        throw new Error('Invalid import format');
+                    }
+
+                    const { DB } = await import('./db.js');
+                    // Import currently replaces vault content with provided payload.
+                    const existing = await DB.getAllItems();
+                    await Promise.all(existing.map(item => DB.deleteItem(item.id)));
+
+                    for (const [index, raw] of payload.entries()) {
+                        const item = this.normalizeImportedItem(raw, index);
+                        await DB.addItem(item);
+                    }
+
+                    await this.app.loadCollection();
+                    this.showToast(`Imported ${payload.length} item(s).`, 'success');
+                } catch (error) {
+                    console.error('Import failed:', error);
+                    this.showToast('Import failed. Check file format.', 'error');
+                } finally {
+                    e.target.value = '';
+                }
+            });
+        }
+    },
+
+    /**
+     * Normalizes imported objects to a stable internal item shape.
+     * @param {unknown} raw
+     * @param {number} index
+     * @returns {object}
+     */
+    normalizeImportedItem(raw, index) {
+        const item = (raw && typeof raw === 'object') ? raw : {};
+        const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : `coin_${Date.now()}_${index}_${Math.random().toString(36).slice(2)}`;
+        return {
+            id: String(item.id || generatedId),
+            imageBlob: String(item.imageBlob || ''),
+            country: String(item.country || 'Unknown'),
+            denomination: String(item.denomination || 'Unknown'),
+            year: String(item.year || 'Unknown'),
+            mintMark: String(item.mintMark || ''),
+            metal: String(item.metal || 'Unknown'),
+            grade: String(item.grade || 'Raw'),
+            estimatedValue: Number(item.estimatedValue) || 0,
+            citation: String(item.citation || ''),
+            description: String(item.description || ''),
+            dateAdded: item.dateAdded ? String(item.dateAdded) : new Date().toISOString(),
+            tags: Array.isArray(item.tags) ? item.tags : []
+        };
+    },
+
+    /**
+     * Binds global bottom-sheet close interactions (overlay click + Escape key).
+     */
+    bindBottomSheet() {
+        const overlay = document.getElementById('sheetOverlay');
+        if (overlay) {
+            overlay.addEventListener('click', () => this.closeBottomSheet());
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') this.closeBottomSheet();
+        });
+    },
+
+    /**
+     * Opens the item detail bottom sheet and locks page scrolling.
+     */
+    openBottomSheet() {
+        const overlay = document.getElementById('sheetOverlay');
+        const sheet = document.getElementById('itemBottomSheet');
+        if (overlay) overlay.classList.add('show');
+        if (sheet) sheet.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    },
+
+    /**
+     * Closes the item detail bottom sheet and restores page scrolling.
+     */
+    closeBottomSheet() {
+        const overlay = document.getElementById('sheetOverlay');
+        const sheet = document.getElementById('itemBottomSheet');
+        if (overlay) overlay.classList.remove('show');
+        if (sheet) sheet.classList.remove('open');
+        document.body.style.overflow = '';
+    },
+
+    /**
+     * Loads available Gemini models and refreshes the model dropdown.
+     * @returns {Promise<void>}
+     */
+    async refreshModelList() {
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const modelSelect = document.getElementById('modelSelect');
+        if (!apiKeyInput || !modelSelect) return;
+
+        const apiKey = apiKeyInput.value.trim();
+        if (!apiKey) {
+            modelSelect.innerHTML = '<option value="">Set API key to load models</option>';
+            return;
+        }
+
+        try {
+            const { AI } = await import('./ai.js');
+            AI.apiKey = apiKey;
+            const models = await AI.fetchAvailableModels();
+            const selected = modelSelect.value;
+
+            if (!models.length) {
+                modelSelect.innerHTML = '<option value="">No models available</option>';
+                return;
+            }
+
+            const modelPrefix = 'models/';
+            const modelNames = models.map(model =>
+                model.name.startsWith(modelPrefix) ? model.name.slice(modelPrefix.length) : model.name
+            );
+            modelSelect.innerHTML = modelNames.map(name => `<option value="${name}">${name}</option>`).join('');
+
+            const hasSelected = modelNames.includes(selected);
+            modelSelect.value = hasSelected ? selected : modelNames[0];
+        } catch (error) {
+            console.error('Model refresh failed:', error);
+            modelSelect.innerHTML = '<option value="">Failed to load models</option>';
+        }
+    },
+
+    /**
+     * Stores source item list and refreshes collection UI controls/content.
+     * @param {object[]} items
+     */
     renderCollection(items) {
         this.allItems = items;
         this.updateCountryFilter(items);
-        this.renderGrid(items);
+        this.applyCollectionFilters();
     },
 
+    /**
+     * Rebuilds country filter options from available item data.
+     * @param {object[]} items
+     */
     updateCountryFilter(items) {
         const filter = document.getElementById('countryFilter');
         const countries = [...new Set(items.map(i => i.country))].sort();
         filter.innerHTML = '<option value="All">All Countries</option>' + countries.map(c => `<option value="${c}">${c}</option>`).join('');
     },
 
+    /**
+     * Renders collection cards for current filtered items.
+     * @param {object[]} items
+     */
     renderGrid(items) {
         const grid = document.getElementById('collectionGrid');
         grid.innerHTML = items.length === 0 ? '<div class="col-span-full text-center text-stone-400 py-20 font-bold uppercase tracking-widest">Vault Empty</div>' : '';
@@ -287,6 +575,10 @@ export const UI = {
         });
     },
 
+    /**
+     * Renders high-level dashboard stats and recent items.
+     * @param {object[]} items
+     */
     renderDashboard(items) {
         document.getElementById('totalItemsStat').textContent = items.length;
         document.getElementById('totalValueStat').textContent = '$' + items.reduce((sum, i) => sum + (Number(i.estimatedValue) || 0), 0).toLocaleString(undefined, {minimumFractionDigits: 2});
@@ -308,6 +600,10 @@ export const UI = {
         this.renderChart(items);
     },
 
+    /**
+     * Draws country-based value distribution chart.
+     * @param {object[]} items
+     */
     renderChart(items) {
         const ctx = document.getElementById('valueChart').getContext('2d');
         if (this.chartInstance) this.chartInstance.destroy();
@@ -332,6 +628,10 @@ export const UI = {
         });
     },
 
+    /**
+     * Populates and opens item detail editor sheet.
+     * @param {object} item
+     */
     showItemDetail(item) {
         document.getElementById('detailImage').src = item.imageBlob;
         document.getElementById('editCountry').value = item.country;
@@ -344,6 +644,7 @@ export const UI = {
         document.getElementById('editCitation').value = item.citation || '';
         document.getElementById('editDesc').value = item.description || '';
 
+        // Clone buttons to drop previously bound listeners and avoid duplicates.
         const saveBtn = document.getElementById('saveEditBtn');
         const newSaveBtn = saveBtn.cloneNode(true);
         saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
@@ -375,19 +676,38 @@ export const UI = {
         this.openBottomSheet();
     },
 
+    /**
+     * Displays transient toast feedback.
+     * @param {string} msg
+     * @param {'info'|'error'|'success'|'warning'} [type='info']
+     */
     showToast(msg, type = 'info') {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
-        toast.className = `fixed bottom-24 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-2xl shadow-xl text-white z-[120] font-bold transition-all duration-300 ${type === 'error' ? 'bg-red-500' : type === 'success' ? 'bg-green-500' : 'bg-amber-700'}`;
+        const toneClassByType = {
+            error: 'bg-red-500',
+            success: 'bg-green-500',
+            warning: 'bg-amber-700',
+            info: 'bg-amber-700'
+        };
+        const toneClass = toneClassByType[type] || toneClassByType.info;
+        toast.className = `fixed bottom-24 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-2xl shadow-xl text-white z-[120] font-bold transition-all duration-300 ${toneClass}`;
         toast.classList.remove('hidden');
         setTimeout(() => toast.classList.add('hidden'), 3000);
     },
 
+    /**
+     * Shows blocking loading overlay with contextual message.
+     * @param {string} msg
+     */
     showLoading(msg) {
         document.getElementById('loadingText').textContent = msg;
         document.getElementById('loadingOverlay').classList.remove('hidden');
     },
 
+    /**
+     * Hides loading overlay.
+     */
     hideLoading() {
         document.getElementById('loadingOverlay').classList.add('hidden');
     }

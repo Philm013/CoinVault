@@ -15,7 +15,7 @@ export const UI = {
 
     /**
      * Initializes all UI bindings and loads persisted settings into controls.
-     * @param {object} appInstance
+     * @param {object} appInstance - App orchestrator instance used for business actions.
      */
     init(appInstance) {
         this.app = appInstance;
@@ -674,7 +674,14 @@ export const UI = {
     showToast(msg, type = 'info') {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
-        toast.className = `fixed bottom-24 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-2xl shadow-xl text-white z-[120] font-bold transition-all duration-300 ${type === 'error' ? 'bg-red-500' : type === 'success' ? 'bg-green-500' : 'bg-amber-700'}`;
+        const toneClass = type === 'error'
+            ? 'bg-red-500'
+            : type === 'success'
+                ? 'bg-green-500'
+                : type === 'warning'
+                    ? 'bg-amber-700'
+                    : 'bg-amber-700';
+        toast.className = `fixed bottom-24 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-2xl shadow-xl text-white z-[120] font-bold transition-all duration-300 ${toneClass}`;
         toast.classList.remove('hidden');
         setTimeout(() => toast.classList.add('hidden'), 3000);
     },

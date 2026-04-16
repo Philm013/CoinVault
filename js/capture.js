@@ -16,7 +16,7 @@ export const Capture = {
     /** @type {MediaStream|null} */
     stream: null,
     /** @type {Array<{x:number, y:number, w:number, h:number, isCircle:boolean}>} Active user-selected regions. */
-    boxes: [], // [{x, y, w, h, isCircle: true}]
+    boxes: [],
     /** @type {boolean} Whether pointer drag currently draws a new region. */
     isDrawing: false,
     startX: 0,

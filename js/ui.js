@@ -19,12 +19,22 @@ export const UI = {
      */
     init(appInstance) {
         this.app = appInstance;
-        this.bindNavigation();
-        this.bindCaptureActions();
-        this.bindSettings();
-        this.bindCollectionControls();
-        this.bindDataManagement();
-        this.bindBottomSheet();
+        const binders = [
+            'bindNavigation',
+            'bindCaptureActions',
+            'bindSettings',
+            'bindCollectionControls',
+            'bindDataManagement',
+            'bindBottomSheet'
+        ];
+        binders.forEach(name => {
+            const fn = this[name];
+            if (typeof fn === 'function') {
+                fn.call(this);
+            } else {
+                console.warn(`UI init skipped missing binder: ${name}`);
+            }
+        });
         
         // Initial setup for models and CV settings
         import('./db.js').then(module => {

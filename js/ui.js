@@ -674,15 +674,13 @@ export const UI = {
     showToast(msg, type = 'info') {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
-        const toneClass = type === 'error'
-            ? 'bg-red-500'
-            : type === 'success'
-                ? 'bg-green-500'
-                : type === 'warning'
-                    ? 'bg-amber-700'
-                    : type === 'info'
-                        ? 'bg-amber-700'
-                        : 'bg-amber-700';
+        const toneClassByType = {
+            error: 'bg-red-500',
+            success: 'bg-green-500',
+            warning: 'bg-amber-700',
+            info: 'bg-amber-700'
+        };
+        const toneClass = toneClassByType[type] || toneClassByType.info;
         toast.className = `fixed bottom-24 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-2xl shadow-xl text-white z-[120] font-bold transition-all duration-300 ${toneClass}`;
         toast.classList.remove('hidden');
         setTimeout(() => toast.classList.add('hidden'), 3000);

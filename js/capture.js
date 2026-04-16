@@ -15,7 +15,7 @@ export const Capture = {
     ctx: null,
     /** @type {MediaStream|null} */
     stream: null,
-    /** @type {Array<{x:number, y:number, w:number, h:number, isCircle:boolean}>} Active user-selected regions. */
+    /** @type {Array<{x:number; y:number; w:number; h:number; isCircle:boolean}>} Active user-selected regions. */
     boxes: [],
     /** @type {boolean} Whether pointer drag currently draws a new region. */
     isDrawing: false,
@@ -27,7 +27,7 @@ export const Capture = {
     isAutoDetecting: true,
     /** @type {number|null} Reserved for interval-based detection loops. */
     detectInterval: null,
-    /** @type {Array<{x:number, y:number, w:number, h:number, isCircle:boolean}>} Last auto-detected regions. */
+    /** @type {Array<{x:number; y:number; w:number; h:number; isCircle:boolean}>} Last auto-detected regions. */
     lastDetectedCircles: [],
 
     /**

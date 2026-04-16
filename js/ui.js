@@ -267,7 +267,7 @@ export const UI = {
 
         const searchTerm = (searchInput?.value || '').trim().toLowerCase();
         const selectedCountry = countryFilter?.value || 'All';
-        const selectedSort = sortOrder?.value || 'newest';
+        const selectedSort = sortOrder?.value === 'valueHigh' ? 'valueHigh' : 'newest';
 
         let filtered = [...this.allItems];
 
@@ -335,14 +335,12 @@ export const UI = {
 
                     const { DB } = await import('./db.js');
                     const existing = await DB.getAllItems();
-                    for (const item of existing) {
-                        await DB.deleteItem(item.id);
-                    }
+                    await Promise.all(existing.map(item => DB.deleteItem(item.id)));
 
-                    for (const [index, raw] of payload.entries()) {
+                    await Promise.all(payload.map((raw, index) => {
                         const item = this.normalizeImportedItem(raw, index);
-                        await DB.updateItem(item);
-                    }
+                        return DB.updateItem(item);
+                    }));
 
                     await this.app.loadCollection();
                     this.showToast(`Imported ${payload.length} item(s).`, 'success');
@@ -358,7 +356,9 @@ export const UI = {
 
     normalizeImportedItem(raw, index) {
         const item = (raw && typeof raw === 'object') ? raw : {};
-        const generatedId = `coin_${Date.now()}_${index}`;
+        const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : `coin_${Date.now()}_${index}_${Math.random().toString(36).slice(2)}`;
         return {
             id: String(item.id || generatedId),
             imageBlob: String(item.imageBlob || ''),
@@ -425,13 +425,14 @@ export const UI = {
                 return;
             }
 
+            const modelPrefix = 'models/';
             modelSelect.innerHTML = models.map(model => {
-                const name = model.name.replace('models/', '');
+                const name = model.name.replace(modelPrefix, '');
                 return `<option value="${name}">${name}</option>`;
             }).join('');
 
-            const hasSelected = models.some(model => model.name.replace('models/', '') === selected);
-            modelSelect.value = hasSelected ? selected : models[0].name.replace('models/', '');
+            const hasSelected = models.some(model => model.name.replace(modelPrefix, '') === selected);
+            modelSelect.value = hasSelected ? selected : models[0].name.replace(modelPrefix, '');
         } catch (error) {
             console.error('Model refresh failed:', error);
             modelSelect.innerHTML = '<option value="">Failed to load models</option>';

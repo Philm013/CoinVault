@@ -1,0 +1,70 @@
+name: Deploy GitHub Pages branch
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PAGES_BRANCH: pages
+  PUBLISH_DIR: .
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Publish static site to pages branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          pages_dir="${RUNNER_TEMP}/pages-branch"
+
+          if git ls-remote --exit-code --heads origin "${PAGES_BRANCH}" >/dev/null 2>&1; then
+            git fetch origin "${PAGES_BRANCH}:${PAGES_BRANCH}"
+            git worktree add "${pages_dir}" "${PAGES_BRANCH}"
+            find "${pages_dir}" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          else
+            git worktree add --detach "${pages_dir}"
+            git -C "${pages_dir}" checkout --orphan "${PAGES_BRANCH}"
+            find "${pages_dir}" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          fi
+
+          rsync -av --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'node_modules' \
+            --exclude '.DS_Store' \
+            "${PUBLISH_DIR}/" "${pages_dir}/"
+
+          touch "${pages_dir}/.nojekyll"
+
+          git -C "${pages_dir}" add -A
+
+          if git -C "${pages_dir}" diff --cached --quiet; then
+            echo "No Pages changes to publish."
+            exit 0
+          fi
+
+          git -C "${pages_dir}" commit -m "Deploy GitHub Pages"
+          git -C "${pages_dir}" push origin "HEAD:${PAGES_BRANCH}" --force
+
+      - name: Configure Pages branch
+        run: |
+          echo "Set GitHub Pages to deploy from the '${PAGES_BRANCH}' branch in the repository settings."

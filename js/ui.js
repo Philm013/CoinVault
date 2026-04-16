@@ -244,10 +244,211 @@ export const UI = {
         }
     },
 
+    bindCollectionControls() {
+        const searchInput = document.getElementById('searchInput');
+        const countryFilter = document.getElementById('countryFilter');
+        const sortOrder = document.getElementById('sortOrder');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', () => this.applyCollectionFilters());
+        }
+        if (countryFilter) {
+            countryFilter.addEventListener('change', () => this.applyCollectionFilters());
+        }
+        if (sortOrder) {
+            sortOrder.addEventListener('change', () => this.applyCollectionFilters());
+        }
+    },
+
+    applyCollectionFilters() {
+        const searchInput = document.getElementById('searchInput');
+        const countryFilter = document.getElementById('countryFilter');
+        const sortOrder = document.getElementById('sortOrder');
+
+        const searchTerm = (searchInput?.value || '').trim().toLowerCase();
+        const selectedCountry = countryFilter?.value || 'All';
+        const SORT_NEWEST = 'newest';
+        const SORT_VALUE_HIGH = 'valueHigh';
+        const selectedSort = sortOrder?.value === SORT_VALUE_HIGH ? SORT_VALUE_HIGH : SORT_NEWEST;
+
+        let filtered = [...this.allItems];
+
+        if (searchTerm) {
+            filtered = filtered.filter(item => {
+                const denom = String(item.denomination || '').toLowerCase();
+                const country = String(item.country || '').toLowerCase();
+                const year = String(item.year || '').toLowerCase();
+                return denom.includes(searchTerm) || country.includes(searchTerm) || year.includes(searchTerm);
+            });
+        }
+
+        if (selectedCountry !== 'All') {
+            filtered = filtered.filter(item => item.country === selectedCountry);
+        }
+
+        filtered.sort((a, b) => {
+            if (selectedSort === SORT_VALUE_HIGH) {
+                return (Number(b.estimatedValue) || 0) - (Number(a.estimatedValue) || 0);
+            }
+            const getSortTimestamp = (item) => {
+                const parsed = Date.parse(item.dateAdded);
+                return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+            };
+            return getSortTimestamp(b) - getSortTimestamp(a);
+        });
+
+        this.renderGrid(filtered);
+    },
+
+    bindDataManagement() {
+        const exportBtn = document.getElementById('exportDataBtn');
+        const importInput = document.getElementById('importFileInput');
+
+        if (exportBtn) {
+            exportBtn.addEventListener('click', async () => {
+                try {
+                    const { DB } = await import('./db.js');
+                    const items = await DB.getAllItems();
+                    const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `coinvault-export-${new Date().toISOString().slice(0, 10)}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                    this.showToast('Vault exported.', 'success');
+                } catch (error) {
+                    console.error('Export failed:', error);
+                    this.showToast('Export failed.', 'error');
+                }
+            });
+        }
+
+        if (importInput) {
+            importInput.addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+
+                try {
+                    const text = await file.text();
+                    const payload = JSON.parse(text);
+
+                    if (!Array.isArray(payload)) {
+                        throw new Error('Invalid import format');
+                    }
+
+                    const { DB } = await import('./db.js');
+                    const existing = await DB.getAllItems();
+                    await Promise.all(existing.map(item => DB.deleteItem(item.id)));
+
+                    for (const [index, raw] of payload.entries()) {
+                        const item = this.normalizeImportedItem(raw, index);
+                        await DB.addItem(item);
+                    }
+
+                    await this.app.loadCollection();
+                    this.showToast(`Imported ${payload.length} item(s).`, 'success');
+                } catch (error) {
+                    console.error('Import failed:', error);
+                    this.showToast('Import failed. Check file format.', 'error');
+                } finally {
+                    e.target.value = '';
+                }
+            });
+        }
+    },
+
+    normalizeImportedItem(raw, index) {
+        const item = (raw && typeof raw === 'object') ? raw : {};
+        const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : `coin_${Date.now()}_${index}_${Math.random().toString(36).slice(2)}`;
+        return {
+            id: String(item.id || generatedId),
+            imageBlob: String(item.imageBlob || ''),
+            country: String(item.country || 'Unknown'),
+            denomination: String(item.denomination || 'Unknown'),
+            year: String(item.year || 'Unknown'),
+            mintMark: String(item.mintMark || ''),
+            metal: String(item.metal || 'Unknown'),
+            grade: String(item.grade || 'Raw'),
+            estimatedValue: Number(item.estimatedValue) || 0,
+            citation: String(item.citation || ''),
+            description: String(item.description || ''),
+            dateAdded: item.dateAdded ? String(item.dateAdded) : new Date().toISOString(),
+            tags: Array.isArray(item.tags) ? item.tags : []
+        };
+    },
+
+    bindBottomSheet() {
+        const overlay = document.getElementById('sheetOverlay');
+        if (overlay) {
+            overlay.addEventListener('click', () => this.closeBottomSheet());
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') this.closeBottomSheet();
+        });
+    },
+
+    openBottomSheet() {
+        const overlay = document.getElementById('sheetOverlay');
+        const sheet = document.getElementById('itemBottomSheet');
+        if (overlay) overlay.classList.add('show');
+        if (sheet) sheet.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    },
+
+    closeBottomSheet() {
+        const overlay = document.getElementById('sheetOverlay');
+        const sheet = document.getElementById('itemBottomSheet');
+        if (overlay) overlay.classList.remove('show');
+        if (sheet) sheet.classList.remove('open');
+        document.body.style.overflow = '';
+    },
+
+    async refreshModelList() {
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const modelSelect = document.getElementById('modelSelect');
+        if (!apiKeyInput || !modelSelect) return;
+
+        const apiKey = apiKeyInput.value.trim();
+        if (!apiKey) {
+            modelSelect.innerHTML = '<option value="">Set API key to load models</option>';
+            return;
+        }
+
+        try {
+            const { AI } = await import('./ai.js');
+            AI.apiKey = apiKey;
+            const models = await AI.fetchAvailableModels();
+            const selected = modelSelect.value;
+
+            if (!models.length) {
+                modelSelect.innerHTML = '<option value="">No models available</option>';
+                return;
+            }
+
+            const modelPrefix = 'models/';
+            const modelNames = models.map(model =>
+                model.name.startsWith(modelPrefix) ? model.name.slice(modelPrefix.length) : model.name
+            );
+            modelSelect.innerHTML = modelNames.map(name => `<option value="${name}">${name}</option>`).join('');
+
+            const hasSelected = modelNames.includes(selected);
+            modelSelect.value = hasSelected ? selected : modelNames[0];
+        } catch (error) {
+            console.error('Model refresh failed:', error);
+            modelSelect.innerHTML = '<option value="">Failed to load models</option>';
+        }
+    },
+
     renderCollection(items) {
         this.allItems = items;
         this.updateCountryFilter(items);
-        this.renderGrid(items);
+        this.applyCollectionFilters();
     },
 
     updateCountryFilter(items) {

@@ -669,7 +669,7 @@ export const UI = {
     /**
      * Displays transient toast feedback.
      * @param {string} msg
-     * @param {'info'|'error'|'success'|'warning'} [type='info']
+     * @param {'info'|'error'|'success'|'warning'} [type='info'] - `info` and `warning` currently share amber styling.
      */
     showToast(msg, type = 'info') {
         const toast = document.getElementById('toast');
@@ -680,7 +680,9 @@ export const UI = {
                 ? 'bg-green-500'
                 : type === 'warning'
                     ? 'bg-amber-700'
-                    : 'bg-amber-700';
+                    : type === 'info'
+                        ? 'bg-amber-700'
+                        : 'bg-amber-700';
         toast.className = `fixed bottom-24 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-2xl shadow-xl text-white z-[120] font-bold transition-all duration-300 ${toneClass}`;
         toast.classList.remove('hidden');
         setTimeout(() => toast.classList.add('hidden'), 3000);

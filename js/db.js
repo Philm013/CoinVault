@@ -3,7 +3,7 @@
  * Provides a small promise-based API for items and app settings.
  */
 export const DB = {
-    // Database identity/version for schema upgrades.
+    /** Database identity/version for schema upgrades. */
     dbName: 'CoinVault_DB',
     dbVersion: 1,
     db: null,

@@ -15,19 +15,19 @@ export const Capture = {
     ctx: null,
     /** @type {MediaStream|null} */
     stream: null,
-    /** Active user-selected regions: [{x, y, w, h, isCircle}] */
+    /** @type {Array<{x:number, y:number, w:number, h:number, isCircle:boolean}>} Active user-selected regions. */
     boxes: [], // [{x, y, w, h, isCircle: true}]
-    /** Whether pointer drag currently draws a new region. */
+    /** @type {boolean} Whether pointer drag currently draws a new region. */
     isDrawing: false,
     startX: 0,
     startY: 0,
-    /** Snapshot image used once capture is frozen. */
+    /** @type {HTMLImageElement|null} Snapshot image used once capture is frozen. */
     currentImage: null,
-    /** Whether automatic detection is enabled from UI toggle. */
+    /** @type {boolean} Whether automatic detection is enabled from UI toggle. */
     isAutoDetecting: true,
-    /** Reserved for interval-based detection loops. */
+    /** @type {number|null} Reserved for interval-based detection loops. */
     detectInterval: null,
-    /** Last auto-detected regions; tap toggles these on/off quickly. */
+    /** @type {Array<{x:number, y:number, w:number, h:number, isCircle:boolean}>} Last auto-detected regions. */
     lastDetectedCircles: [],
 
     /**

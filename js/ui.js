@@ -669,7 +669,7 @@ export const UI = {
     /**
      * Displays transient toast feedback.
      * @param {string} msg
-     * @param {'info'|'error'|'success'|'warning'} [type='info'] - `info` and `warning` currently share amber styling.
+     * @param {'info'|'error'|'success'|'warning'} [type='info']
      */
     showToast(msg, type = 'info') {
         const toast = document.getElementById('toast');

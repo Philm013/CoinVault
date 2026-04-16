@@ -337,10 +337,10 @@ export const UI = {
                     const existing = await DB.getAllItems();
                     await Promise.all(existing.map(item => DB.deleteItem(item.id)));
 
-                    await Promise.all(payload.map((raw, index) => {
+                    for (const [index, raw] of payload.entries()) {
                         const item = this.normalizeImportedItem(raw, index);
-                        return DB.updateItem(item);
-                    }));
+                        await DB.updateItem(item);
+                    }
 
                     await this.app.loadCollection();
                     this.showToast(`Imported ${payload.length} item(s).`, 'success');
@@ -426,13 +426,11 @@ export const UI = {
             }
 
             const modelPrefix = 'models/';
-            modelSelect.innerHTML = models.map(model => {
-                const name = model.name.replace(modelPrefix, '');
-                return `<option value="${name}">${name}</option>`;
-            }).join('');
+            const modelNames = models.map(model => model.name.replace(modelPrefix, ''));
+            modelSelect.innerHTML = modelNames.map(name => `<option value="${name}">${name}</option>`).join('');
 
-            const hasSelected = models.some(model => model.name.replace(modelPrefix, '') === selected);
-            modelSelect.value = hasSelected ? selected : models[0].name.replace(modelPrefix, '');
+            const hasSelected = modelNames.includes(selected);
+            modelSelect.value = hasSelected ? selected : modelNames[0];
         } catch (error) {
             console.error('Model refresh failed:', error);
             modelSelect.innerHTML = '<option value="">Failed to load models</option>';

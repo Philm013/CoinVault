@@ -1,21 +1,33 @@
 import { DB } from './db.js';
 
+/**
+ * Gemini API integration for model discovery and coin/currency identification.
+ */
 export const AI = {
     apiKey: null,
     modelName: 'gemini-1.5-flash',
 
+    /**
+     * Loads API key and preferred model from persistent settings.
+     * @returns {Promise<void>}
+     */
     async init() {
         this.apiKey = await DB.getSetting('geminiApiKey');
         const model = await DB.getSetting('geminiModel');
         if (model) this.modelName = model;
     },
 
+    /**
+     * Fetches generative models that support `generateContent`.
+     * @returns {Promise<object[]>}
+     */
     async fetchAvailableModels() {
         if (!this.apiKey) return [];
         try {
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`);
             if (!response.ok) throw new Error('Failed to fetch models');
             const data = await response.json();
+            // Keep only models that can handle text+image prompting for this app.
             return data.models.filter(m => m.supportedGenerationMethods.includes('generateContent'));
         } catch (e) {
             console.error("Error listing models:", e);
@@ -23,6 +35,11 @@ export const AI = {
         }
     },
 
+    /**
+     * Sends a captured item image to Gemini and expects a JSON-only response.
+     * @param {string} base64Image - Data URL (`data:image/...;base64,...`).
+     * @returns {Promise<object>}
+     */
     async identifyItem(base64Image) {
         if (!this.apiKey) {
             throw new Error('Gemini API Key is not set. Please set it in settings.');
@@ -45,6 +62,7 @@ export const AI = {
             If any information cannot be determined, use null for that field (or 0 for estimatedValue).
         `;
 
+        // Gemini inlineData accepts raw base64 bytes and explicit MIME type.
         const base64Data = base64Image.split(',')[1];
         const mimeType = base64Image.split(';')[0].split(':')[1];
 
@@ -77,6 +95,7 @@ export const AI = {
         const textResult = data.candidates[0].content.parts[0].text;
         
         try {
+            // Defensive cleanup in case the model wraps JSON in markdown fences.
             const jsonStr = textResult.replace(/```json\n|\n```/g, '').trim();
             return JSON.parse(jsonStr);
         } catch (e) {

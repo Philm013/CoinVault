@@ -4,7 +4,15 @@ import { AI } from './ai.js';
 import { Capture } from './capture.js';
 import { UI } from './ui.js';
 
+/**
+ * Application orchestrator.
+ * Coordinates startup, persistence, camera capture, AI analysis, and UI updates.
+ */
 export const App = {
+    /**
+     * Bootstraps all app modules and sets the initial view state.
+     * @returns {Promise<void>}
+     */
     async init() {
         try {
             // Wait for OpenCV to be ready
@@ -19,10 +27,15 @@ export const App = {
                 });
             }
 
+            // Initialize persistence first so settings are available for AI/UI setup.
             await DB.init();
+            // Load AI configuration (API key + selected model) from IndexedDB.
             await AI.init();
+            // Prepare camera/canvas handlers used by the capture view.
             Capture.init('cameraVideo', 'captureCanvas');
+            // Wire all UI event handlers after modules are ready.
             UI.init(this);
+            // Populate dashboard/collection with saved items.
             this.loadCollection();
 
             // Hide CV Loading screen
@@ -42,12 +55,22 @@ export const App = {
         }
     },
 
+    /**
+     * Loads all saved items and refreshes collection + dashboard sections.
+     * @returns {Promise<void>}
+     */
     async loadCollection() {
         const items = await DB.getAllItems();
         UI.renderCollection(items);
         UI.renderDashboard(items);
     },
 
+    /**
+     * Persists settings and applies them to the active AI session.
+     * @param {string} apiKey - Gemini API key.
+     * @param {string} model - Gemini model name.
+     * @returns {Promise<void>}
+     */
     async saveSettings(apiKey, model) {
         await DB.saveSetting('geminiApiKey', apiKey);
         await DB.saveSetting('geminiModel', model);
@@ -56,7 +79,12 @@ export const App = {
         UI.showToast("Settings saved!", "success");
     },
 
+    /**
+     * Sends each selected crop to AI, normalizes returned fields, and stores them.
+     * @returns {Promise<void>}
+     */
     async processCapturedItems() {
+        // Convert current selection boxes into cropped base64 images.
         const crops = Capture.extractCrops();
         if (crops.length === 0) {
             UI.showToast("No items selected. Draw boxes over each item.", "warning");
@@ -68,6 +96,7 @@ export const App = {
             try {
                 UI.showLoading(`AI Analyzing item ${index + 1} of ${crops.length}...`);
                 const aiData = await AI.identifyItem(cropBase64);
+                // Build a complete record with safe defaults for missing AI fields.
                 const itemInfo = {
                     id: 'coin_' + Date.now() + '_' + index,
                     imageBlob: cropBase64,
@@ -85,6 +114,7 @@ export const App = {
                 };
                 await DB.addItem(itemInfo);
             } catch (e) {
+                // Continue processing remaining items even if one fails.
                 console.error("Process failed", e);
                 UI.showToast(`Error processing item ${index + 1}: ${e.message}`, "error");
             }
@@ -97,6 +127,11 @@ export const App = {
         UI.switchView('collectionView');
     },
 
+    /**
+     * Deletes an item after user confirmation, then refreshes visible data.
+     * @param {string} id - Item identifier.
+     * @returns {Promise<void>}
+     */
     async deleteItem(id) {
         if(confirm("Are you sure you want to delete this item?")) {
             await DB.deleteItem(id);
@@ -105,6 +140,11 @@ export const App = {
         }
     },
 
+    /**
+     * Saves edits made in the item detail form and refreshes list/dashboard views.
+     * @param {object} itemData - Updated item payload.
+     * @returns {Promise<void>}
+     */
     async saveItemEdit(itemData) {
         await DB.updateItem(itemData);
         UI.showToast("Item updated!", "success");
@@ -112,4 +152,5 @@ export const App = {
     }
 };
 
+// Start the app once the DOM is fully parsed and all IDs are queryable.
 document.addEventListener('DOMContentLoaded', () => App.init());

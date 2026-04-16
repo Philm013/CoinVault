@@ -267,7 +267,9 @@ export const UI = {
 
         const searchTerm = (searchInput?.value || '').trim().toLowerCase();
         const selectedCountry = countryFilter?.value || 'All';
-        const selectedSort = sortOrder?.value === 'valueHigh' ? 'valueHigh' : 'newest';
+        const SORT_NEWEST = 'newest';
+        const SORT_VALUE_HIGH = 'valueHigh';
+        const selectedSort = sortOrder?.value === SORT_VALUE_HIGH ? SORT_VALUE_HIGH : SORT_NEWEST;
 
         let filtered = [...this.allItems];
 
@@ -285,12 +287,14 @@ export const UI = {
         }
 
         filtered.sort((a, b) => {
-            if (selectedSort === 'valueHigh') {
+            if (selectedSort === SORT_VALUE_HIGH) {
                 return (Number(b.estimatedValue) || 0) - (Number(a.estimatedValue) || 0);
             }
-            const bTime = Date.parse(b.dateAdded);
-            const aTime = Date.parse(a.dateAdded);
-            return (Number.isFinite(bTime) ? bTime : Number.NEGATIVE_INFINITY) - (Number.isFinite(aTime) ? aTime : Number.NEGATIVE_INFINITY);
+            const getSortTimestamp = (item) => {
+                const parsed = Date.parse(item.dateAdded);
+                return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+            };
+            return getSortTimestamp(b) - getSortTimestamp(a);
         });
 
         this.renderGrid(filtered);
@@ -428,7 +432,9 @@ export const UI = {
             }
 
             const modelPrefix = 'models/';
-            const modelNames = models.map(model => model.name.replaceAll(modelPrefix, ''));
+            const modelNames = models.map(model =>
+                model.name.startsWith(modelPrefix) ? model.name.slice(modelPrefix.length) : model.name
+            );
             modelSelect.innerHTML = modelNames.map(name => `<option value="${name}">${name}</option>`).join('');
 
             const hasSelected = modelNames.includes(selected);

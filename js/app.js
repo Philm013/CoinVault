@@ -100,7 +100,7 @@ export const App = {
         }
 
         UI.showLoading(`Processing ${crops.length} item(s)...`);
-        try {
+        try { 
             for (const [index, cropBase64] of crops.entries()) {
                 try {
                     UI.showLoading(`AI Analyzing item ${index + 1} of ${crops.length}...`);
@@ -128,10 +128,6 @@ export const App = {
                     UI.showToast(`Error processing item ${index + 1}: ${e.message}`, "error");
                 }
             }
-        } catch (e) {
-            console.error("Processing aborted", e);
-            UI.showToast("Processing failed. Please try again.", "error");
-            return;
         } finally {
             UI.hideLoading();
         }

@@ -85,7 +85,7 @@ Because this app uses browser APIs (camera, modules, fetch), run it from a local
 Use any static server. Example with Python:
 
 ```bash
-cd /home/runner/work/CoinVault/CoinVault
+cd CoinVault
 python3 -m http.server 8080
 ```
 

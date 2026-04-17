@@ -58,6 +58,16 @@ export const Capture = {
     },
 
     /**
+     * Converts a touch point to canvas-relative offsets.
+     * @param {Touch} touch
+     * @returns {{offsetX:number, offsetY:number}}
+     */
+    getTouchOffset(touch) {
+        const rect = this.canvasEl.getBoundingClientRect();
+        return { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top };
+    },
+
+    /**
      * Binds capture module to existing video/canvas elements.
      * @param {string} videoElementId
      * @param {string} canvasElementId
@@ -78,22 +88,22 @@ export const Capture = {
         this.canvasEl.addEventListener('mousemove', this.onPointerMove.bind(this));
         this.canvasEl.addEventListener('mouseup', this.onPointerUp.bind(this));
         // Touch events are converted into mouse-like offsets for shared handlers.
-        const getTouchOffset = (touch) => {
-            const rect = this.canvasEl.getBoundingClientRect();
-            return { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top };
-        };
         this.canvasEl.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            this.onPointerDown(getTouchOffset(e.touches[0]));
+            this.onPointerDown(this.getTouchOffset(e.touches[0]));
         }, { passive: false });
         this.canvasEl.addEventListener('touchmove', (e) => {
             e.preventDefault();
-            this.onPointerMove(getTouchOffset(e.touches[0]));
+            this.onPointerMove(this.getTouchOffset(e.touches[0]));
         }, { passive: false });
         this.canvasEl.addEventListener('touchend', (e) => {
              e.preventDefault();
-             this.onPointerUp(e);
-        });
+             const touch = e.changedTouches && e.changedTouches[0];
+             if (!touch) {
+                 console.warn('touchend event had no changedTouches entry; using start coordinates');
+             }
+             this.onPointerUp(touch ? this.getTouchOffset(touch) : { offsetX: this.startX, offsetY: this.startY });
+         });
 
         document.getElementById('toggleAutoBtn').addEventListener('click', (e) => {
             this.isAutoDetecting = !this.isAutoDetecting;
@@ -379,7 +389,10 @@ export const Capture = {
     onPointerUp(e) {
         if (!this.isDrawing) return;
         this.isDrawing = false;
-        const coords = this.getImgCoords(e.offsetX, e.offsetY);
+        const hasValidOffsets = Number.isFinite(e?.offsetX) && Number.isFinite(e?.offsetY);
+        const coords = hasValidOffsets
+            ? this.getImgCoords(e.offsetX, e.offsetY)
+            : { x: this.startX, y: this.startY };
         if (!this.moved) {
             // A tap toggles one existing auto-detected region.
             const tappedIdx = this.lastDetectedCircles.findIndex(c => {
@@ -468,10 +481,23 @@ export const Capture = {
         const src = cv.imread(this.canvasEl);
         this.boxes.forEach(box => {
             // Clamp ROI so selection cannot exceed image bounds.
-            const rect = new cv.Rect(
-                Math.max(0, Math.round(box.x)), Math.max(0, Math.round(box.y)),
-                Math.min(src.cols - box.x, Math.round(box.w)), Math.min(src.rows - box.y, Math.round(box.h))
-            );
+            const x = Math.max(0, Math.round(box.x));
+            const y = Math.max(0, Math.round(box.y));
+            const maxW = src.cols - x;
+            const maxH = src.rows - y;
+            if (maxW <= 0 || maxH <= 0) {
+                console.warn(`Skipping crop: selection outside bounds (maxW=${maxW}, maxH=${maxH})`, box);
+                return;
+            }
+
+            const w = Math.min(maxW, Math.max(1, Math.round(box.w)));
+            const h = Math.min(maxH, Math.max(1, Math.round(box.h)));
+            if (!Number.isFinite(w) || !Number.isFinite(h)) {
+                console.warn(`Skipping crop: non-finite dimensions (w=${w}, h=${h})`, box);
+                return;
+            }
+
+            const rect = new cv.Rect(x, y, w, h);
             const dst = src.roi(rect);
             const tempCanvas = document.createElement('canvas');
             cv.imshow(tempCanvas, dst);

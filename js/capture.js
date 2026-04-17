@@ -92,8 +92,9 @@ export const Capture = {
         }, { passive: false });
         this.canvasEl.addEventListener('touchend', (e) => {
              e.preventDefault();
-             this.onPointerUp(e);
-        });
+             const touch = e.changedTouches && e.changedTouches[0];
+             this.onPointerUp(touch ? getTouchOffset(touch) : e);
+         });
 
         document.getElementById('toggleAutoBtn').addEventListener('click', (e) => {
             this.isAutoDetecting = !this.isAutoDetecting;
@@ -379,7 +380,10 @@ export const Capture = {
     onPointerUp(e) {
         if (!this.isDrawing) return;
         this.isDrawing = false;
-        const coords = this.getImgCoords(e.offsetX, e.offsetY);
+        const hasOffsets = Number.isFinite(e?.offsetX) && Number.isFinite(e?.offsetY);
+        const coords = hasOffsets
+            ? this.getImgCoords(e.offsetX, e.offsetY)
+            : { x: this.startX, y: this.startY };
         if (!this.moved) {
             // A tap toggles one existing auto-detected region.
             const tappedIdx = this.lastDetectedCircles.findIndex(c => {
@@ -468,10 +472,17 @@ export const Capture = {
         const src = cv.imread(this.canvasEl);
         this.boxes.forEach(box => {
             // Clamp ROI so selection cannot exceed image bounds.
-            const rect = new cv.Rect(
-                Math.max(0, Math.round(box.x)), Math.max(0, Math.round(box.y)),
-                Math.min(src.cols - box.x, Math.round(box.w)), Math.min(src.rows - box.y, Math.round(box.h))
-            );
+            const x = Math.max(0, Math.round(box.x));
+            const y = Math.max(0, Math.round(box.y));
+            const maxW = src.cols - x;
+            const maxH = src.rows - y;
+            if (maxW <= 0 || maxH <= 0) return;
+
+            const w = Math.min(maxW, Math.max(1, Math.round(box.w)));
+            const h = Math.min(maxH, Math.max(1, Math.round(box.h)));
+            if (!Number.isFinite(w) || !Number.isFinite(h)) return;
+
+            const rect = new cv.Rect(x, y, w, h);
             const dst = src.roi(rect);
             const tempCanvas = document.createElement('canvas');
             cv.imshow(tempCanvas, dst);

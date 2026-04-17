@@ -55,6 +55,63 @@ jobs:
 
           touch "${pages_dir}/.nojekyll"
 
+          PAGES_DIR="${pages_dir}" python3 - <<'PY'
+          import html
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          pages_dir = Path(os.environ["PAGES_DIR"])
+          status_dir = pages_dir / "status"
+          status_dir.mkdir(parents=True, exist_ok=True)
+
+          status = {
+              "repository": os.environ.get("GITHUB_REPOSITORY", ""),
+              "source_branch": os.environ.get("GITHUB_REF_NAME", ""),
+              "source_commit": os.environ.get("GITHUB_SHA", ""),
+              "workflow": os.environ.get("GITHUB_WORKFLOW", ""),
+              "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+              "run_number": os.environ.get("GITHUB_RUN_NUMBER", ""),
+              "deployed_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+          }
+
+          (status_dir / "index.json").write_text(
+              json.dumps(status, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          def escape_html(value: str) -> str:
+              return html.escape(value, quote=True)
+
+          status_page_html = f"""<!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>{escape_html(status["repository"])} Deployment Status</title>
+            <style>
+              body {{ font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }}
+              code {{ background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 4px; }}
+            </style>
+          </head>
+          <body>
+            <h1>{escape_html(status["repository"])} Deployment Status</h1>
+            <p><strong>Repository:</strong> <code>{escape_html(status["repository"])}</code></p>
+            <p><strong>Source branch:</strong> <code>{escape_html(status["source_branch"])}</code></p>
+            <p><strong>Source commit:</strong> <code>{escape_html(status["source_commit"])}</code></p>
+            <p><strong>Workflow:</strong> <code>{escape_html(status["workflow"])}</code></p>
+            <p><strong>Run ID:</strong> <code>{escape_html(status["run_id"])}</code></p>
+            <p><strong>Run number:</strong> <code>{escape_html(status["run_number"])}</code></p>
+            <p><strong>Deployed at (UTC):</strong> <code>{escape_html(status["deployed_at_utc"])}</code></p>
+            <p>Machine-readable status: <a href="./index.json">status/index.json</a></p>
+          </body>
+          </html>
+          """
+
+          (status_dir / "index.html").write_text(status_page_html, encoding="utf-8")
+          PY
+
           git -C "${pages_dir}" add -A
 
           if git -C "${pages_dir}" diff --cached --quiet; then

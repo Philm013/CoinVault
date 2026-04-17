@@ -55,6 +55,47 @@ jobs:
 
           touch "${pages_dir}/.nojekyll"
 
+          deploy_time="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          mkdir -p "${pages_dir}/status"
+
+          cat > "${pages_dir}/status/index.json" <<EOF
+          {
+            "repository": "${GITHUB_REPOSITORY}",
+            "source_branch": "${GITHUB_REF_NAME}",
+            "source_commit": "${GITHUB_SHA}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_number": "${GITHUB_RUN_NUMBER}",
+            "deployed_at_utc": "${deploy_time}"
+          }
+          EOF
+
+          cat > "${pages_dir}/status/index.html" <<EOF
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>CoinVault Deployment Status</title>
+            <style>
+              body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }
+              code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 4px; }
+            </style>
+          </head>
+          <body>
+            <h1>CoinVault Deployment Status</h1>
+            <p><strong>Repository:</strong> <code>${GITHUB_REPOSITORY}</code></p>
+            <p><strong>Source branch:</strong> <code>${GITHUB_REF_NAME}</code></p>
+            <p><strong>Source commit:</strong> <code>${GITHUB_SHA}</code></p>
+            <p><strong>Workflow:</strong> <code>${GITHUB_WORKFLOW}</code></p>
+            <p><strong>Run ID:</strong> <code>${GITHUB_RUN_ID}</code></p>
+            <p><strong>Run number:</strong> <code>${GITHUB_RUN_NUMBER}</code></p>
+            <p><strong>Deployed at (UTC):</strong> <code>${deploy_time}</code></p>
+            <p>Machine-readable status: <a href="./index.json">status/index.json</a></p>
+          </body>
+          </html>
+          EOF
+
           git -C "${pages_dir}" add -A
 
           if git -C "${pages_dir}" diff --cached --quiet; then

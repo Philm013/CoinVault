@@ -85,42 +85,53 @@ export const App = {
      */
     async processCapturedItems() {
         // Convert current selection boxes into cropped base64 images.
-        const crops = Capture.extractCrops();
+        let crops = [];
+        try {
+            crops = Capture.extractCrops();
+        } catch (e) {
+            console.error("Crop extraction failed", e);
+            UI.showToast("Couldn't process selected items. Try retaking the photo or redrawing selections.", "error");
+            return;
+        }
+
         if (crops.length === 0) {
             UI.showToast("No items selected. Draw boxes over each item.", "warning");
             return;
         }
 
         UI.showLoading(`Processing ${crops.length} item(s)...`);
-        for (const [index, cropBase64] of crops.entries()) {
-            try {
-                UI.showLoading(`AI Analyzing item ${index + 1} of ${crops.length}...`);
-                const aiData = await AI.identifyItem(cropBase64);
-                // Build a complete record with safe defaults for missing AI fields.
-                const itemInfo = {
-                    id: 'coin_' + Date.now() + '_' + index,
-                    imageBlob: cropBase64,
-                    country: aiData.country || 'Unknown',
-                    denomination: aiData.denomination || 'Unknown',
-                    year: aiData.year || 'Unknown',
-                    mintMark: aiData.mintMark || '',
-                    metal: aiData.metal || 'Unknown',
-                    grade: aiData.grade || 'Raw',
-                    estimatedValue: aiData.estimatedValue || 0,
-                    citation: aiData.citation || 'AI Market Estimation',
-                    description: aiData.description || '',
-                    dateAdded: new Date().toISOString(),
-                    tags: []
-                };
-                await DB.addItem(itemInfo);
-            } catch (e) {
-                // Continue processing remaining items even if one fails.
-                console.error("Process failed", e);
-                UI.showToast(`Error processing item ${index + 1}: ${e.message}`, "error");
+        try { 
+            for (const [index, cropBase64] of crops.entries()) {
+                try {
+                    UI.showLoading(`AI Analyzing item ${index + 1} of ${crops.length}...`);
+                    const aiData = await AI.identifyItem(cropBase64);
+                    // Build a complete record with safe defaults for missing AI fields.
+                    const itemInfo = {
+                        id: 'coin_' + Date.now() + '_' + index,
+                        imageBlob: cropBase64,
+                        country: aiData.country || 'Unknown',
+                        denomination: aiData.denomination || 'Unknown',
+                        year: aiData.year || 'Unknown',
+                        mintMark: aiData.mintMark || '',
+                        metal: aiData.metal || 'Unknown',
+                        grade: aiData.grade || 'Raw',
+                        estimatedValue: aiData.estimatedValue || 0,
+                        citation: aiData.citation || 'AI Market Estimation',
+                        description: aiData.description || '',
+                        dateAdded: new Date().toISOString(),
+                        tags: []
+                    };
+                    await DB.addItem(itemInfo);
+                } catch (e) {
+                    // Continue processing remaining items even if one fails.
+                    console.error("Process failed", e);
+                    UI.showToast(`Error processing item ${index + 1}: ${e.message}`, "error");
+                }
             }
+        } finally {
+            UI.hideLoading();
         }
 
-        UI.hideLoading();
         UI.showToast("Processing complete!", "success");
         Capture.clearBoxes();
         this.loadCollection();

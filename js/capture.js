@@ -100,7 +100,7 @@ export const Capture = {
              e.preventDefault();
              const touch = e.changedTouches && e.changedTouches[0];
              if (!touch) {
-                 console.warn('touchend event had no changed touch; using start coordinates');
+                 console.warn('touchend event had no changedTouches entry; using start coordinates');
              }
              this.onPointerUp(touch ? this.getTouchOffset(touch) : { offsetX: this.startX, offsetY: this.startY });
          });

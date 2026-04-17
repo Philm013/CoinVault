@@ -55,46 +55,62 @@ jobs:
 
           touch "${pages_dir}/.nojekyll"
 
-          deploy_time="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          mkdir -p "${pages_dir}/status"
+          PAGES_DIR="${pages_dir}" python3 - <<'PY'
+          import html
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
 
-          cat > "${pages_dir}/status/index.json" <<EOF
-          {
-            "repository": "${GITHUB_REPOSITORY}",
-            "source_branch": "${GITHUB_REF_NAME}",
-            "source_commit": "${GITHUB_SHA}",
-            "workflow": "${GITHUB_WORKFLOW}",
-            "run_id": "${GITHUB_RUN_ID}",
-            "run_number": "${GITHUB_RUN_NUMBER}",
-            "deployed_at_utc": "${deploy_time}"
+          pages_dir = Path(os.environ["PAGES_DIR"])
+          status_dir = pages_dir / "status"
+          status_dir.mkdir(parents=True, exist_ok=True)
+
+          status = {
+              "repository": os.environ.get("GITHUB_REPOSITORY", ""),
+              "source_branch": os.environ.get("GITHUB_REF_NAME", ""),
+              "source_commit": os.environ.get("GITHUB_SHA", ""),
+              "workflow": os.environ.get("GITHUB_WORKFLOW", ""),
+              "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+              "run_number": os.environ.get("GITHUB_RUN_NUMBER", ""),
+              "deployed_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
           }
-          EOF
 
-          cat > "${pages_dir}/status/index.html" <<EOF
-          <!doctype html>
+          (status_dir / "index.json").write_text(
+              json.dumps(status, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          def e(value: str) -> str:
+              return html.escape(value, quote=True)
+
+          html_content = f"""<!doctype html>
           <html lang="en">
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>${GITHUB_REPOSITORY} Deployment Status</title>
+            <title>{e(status["repository"])} Deployment Status</title>
             <style>
-              body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }
-              code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 4px; }
+              body {{ font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }}
+              code {{ background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 4px; }}
             </style>
           </head>
           <body>
-            <h1>${GITHUB_REPOSITORY} Deployment Status</h1>
-            <p><strong>Repository:</strong> <code>${GITHUB_REPOSITORY}</code></p>
-            <p><strong>Source branch:</strong> <code>${GITHUB_REF_NAME}</code></p>
-            <p><strong>Source commit:</strong> <code>${GITHUB_SHA}</code></p>
-            <p><strong>Workflow:</strong> <code>${GITHUB_WORKFLOW}</code></p>
-            <p><strong>Run ID:</strong> <code>${GITHUB_RUN_ID}</code></p>
-            <p><strong>Run number:</strong> <code>${GITHUB_RUN_NUMBER}</code></p>
-            <p><strong>Deployed at (UTC):</strong> <code>${deploy_time}</code></p>
+            <h1>{e(status["repository"])} Deployment Status</h1>
+            <p><strong>Repository:</strong> <code>{e(status["repository"])}</code></p>
+            <p><strong>Source branch:</strong> <code>{e(status["source_branch"])}</code></p>
+            <p><strong>Source commit:</strong> <code>{e(status["source_commit"])}</code></p>
+            <p><strong>Workflow:</strong> <code>{e(status["workflow"])}</code></p>
+            <p><strong>Run ID:</strong> <code>{e(status["run_id"])}</code></p>
+            <p><strong>Run number:</strong> <code>{e(status["run_number"])}</code></p>
+            <p><strong>Deployed at (UTC):</strong> <code>{e(status["deployed_at_utc"])}</code></p>
             <p>Machine-readable status: <a href="./index.json">status/index.json</a></p>
           </body>
           </html>
-          EOF
+          """
+
+          (status_dir / "index.html").write_text(html_content, encoding="utf-8")
+          PY
 
           git -C "${pages_dir}" add -A
 

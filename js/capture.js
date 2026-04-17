@@ -99,7 +99,7 @@ export const Capture = {
         this.canvasEl.addEventListener('touchend', (e) => {
              e.preventDefault();
              const touch = e.changedTouches && e.changedTouches[0];
-             this.onPointerUp(touch ? this.getTouchOffset(touch) : e);
+             this.onPointerUp(touch ? this.getTouchOffset(touch) : { offsetX: this.startX, offsetY: this.startY });
          });
 
         document.getElementById('toggleAutoBtn').addEventListener('click', (e) => {
@@ -482,11 +482,17 @@ export const Capture = {
             const y = Math.max(0, Math.round(box.y));
             const maxW = src.cols - x;
             const maxH = src.rows - y;
-            if (maxW <= 0 || maxH <= 0) return;
+            if (maxW <= 0 || maxH <= 0) {
+                console.warn('Skipping crop outside source bounds', box);
+                return;
+            }
 
             const w = Math.min(maxW, Math.max(1, Math.round(box.w)));
             const h = Math.min(maxH, Math.max(1, Math.round(box.h)));
-            if (!Number.isFinite(w) || !Number.isFinite(h)) return;
+            if (!Number.isFinite(w) || !Number.isFinite(h)) {
+                console.warn('Skipping crop with invalid dimensions', box);
+                return;
+            }
 
             const rect = new cv.Rect(x, y, w, h);
             const dst = src.roi(rect);

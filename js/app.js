@@ -90,7 +90,7 @@ export const App = {
             crops = Capture.extractCrops();
         } catch (e) {
             console.error("Crop extraction failed", e);
-            UI.showToast("Couldn't process selected items. Try retaking the photo.", "error");
+            UI.showToast("Couldn't process selected items. Try retaking the photo or redrawing selections.", "error");
             return;
         }
 

@@ -99,6 +99,9 @@ export const Capture = {
         this.canvasEl.addEventListener('touchend', (e) => {
              e.preventDefault();
              const touch = e.changedTouches && e.changedTouches[0];
+             if (!touch) {
+                 console.warn('touchend event had no changed touch; using start coordinates');
+             }
              this.onPointerUp(touch ? this.getTouchOffset(touch) : { offsetX: this.startX, offsetY: this.startY });
          });
 
@@ -483,14 +486,14 @@ export const Capture = {
             const maxW = src.cols - x;
             const maxH = src.rows - y;
             if (maxW <= 0 || maxH <= 0) {
-                console.warn('Skipping crop outside source bounds', box);
+                console.warn(`Skipping crop: selection outside bounds (maxW=${maxW}, maxH=${maxH})`, box);
                 return;
             }
 
             const w = Math.min(maxW, Math.max(1, Math.round(box.w)));
             const h = Math.min(maxH, Math.max(1, Math.round(box.h)));
             if (!Number.isFinite(w) || !Number.isFinite(h)) {
-                console.warn('Skipping crop with invalid dimensions', box);
+                console.warn(`Skipping crop: non-finite dimensions (w=${w}, h=${h})`, box);
                 return;
             }
 

@@ -76,14 +76,14 @@ jobs:
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>CoinVault Deployment Status</title>
+            <title>${GITHUB_REPOSITORY} Deployment Status</title>
             <style>
               body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }
               code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 4px; }
             </style>
           </head>
           <body>
-            <h1>CoinVault Deployment Status</h1>
+            <h1>${GITHUB_REPOSITORY} Deployment Status</h1>
             <p><strong>Repository:</strong> <code>${GITHUB_REPOSITORY}</code></p>
             <p><strong>Source branch:</strong> <code>${GITHUB_REF_NAME}</code></p>
             <p><strong>Source commit:</strong> <code>${GITHUB_SHA}</code></p>

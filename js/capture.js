@@ -58,6 +58,16 @@ export const Capture = {
     },
 
     /**
+     * Converts a touch point to canvas-relative offsets.
+     * @param {Touch} touch
+     * @returns {{offsetX:number, offsetY:number}}
+     */
+    getTouchOffset(touch) {
+        const rect = this.canvasEl.getBoundingClientRect();
+        return { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top };
+    },
+
+    /**
      * Binds capture module to existing video/canvas elements.
      * @param {string} videoElementId
      * @param {string} canvasElementId
@@ -78,22 +88,18 @@ export const Capture = {
         this.canvasEl.addEventListener('mousemove', this.onPointerMove.bind(this));
         this.canvasEl.addEventListener('mouseup', this.onPointerUp.bind(this));
         // Touch events are converted into mouse-like offsets for shared handlers.
-        const getTouchOffset = (touch) => {
-            const rect = this.canvasEl.getBoundingClientRect();
-            return { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top };
-        };
         this.canvasEl.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            this.onPointerDown(getTouchOffset(e.touches[0]));
+            this.onPointerDown(this.getTouchOffset(e.touches[0]));
         }, { passive: false });
         this.canvasEl.addEventListener('touchmove', (e) => {
             e.preventDefault();
-            this.onPointerMove(getTouchOffset(e.touches[0]));
+            this.onPointerMove(this.getTouchOffset(e.touches[0]));
         }, { passive: false });
         this.canvasEl.addEventListener('touchend', (e) => {
              e.preventDefault();
              const touch = e.changedTouches && e.changedTouches[0];
-             this.onPointerUp(touch ? getTouchOffset(touch) : e);
+             this.onPointerUp(touch ? this.getTouchOffset(touch) : e);
          });
 
         document.getElementById('toggleAutoBtn').addEventListener('click', (e) => {
@@ -380,8 +386,8 @@ export const Capture = {
     onPointerUp(e) {
         if (!this.isDrawing) return;
         this.isDrawing = false;
-        const hasOffsets = Number.isFinite(e?.offsetX) && Number.isFinite(e?.offsetY);
-        const coords = hasOffsets
+        const hasValidOffsets = Number.isFinite(e?.offsetX) && Number.isFinite(e?.offsetY);
+        const coords = hasValidOffsets
             ? this.getImgCoords(e.offsetX, e.offsetY)
             : { x: this.startX, y: this.startY };
         if (!this.moved) {
